@@ -1,0 +1,10 @@
+framework: net6.0, netstandard2.0
+source https://api.nuget.org/v3/index.json
+
+nuget FSharp.Core >= 5.0.0 lowest_matching: true
+
+nuget Aardvark.Base ~> 5.2.19
+nuget Aardvark.Build ~> 1.0.18
+
+nuget Aardvark.SceneGraph ~> 5.3.6
+nuget Aardvark.Application.Utilities ~> 5.3.6

@@ -1,0 +1,27 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{3A1EE9CA-A304-45D2-B82C-47BEC3153F0C}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "PhysX", "src\PhysX\PhysX.fsproj", "{D488B3F8-9784-492A-8DFE-3571E509659E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D488B3F8-9784-492A-8DFE-3571E509659E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D488B3F8-9784-492A-8DFE-3571E509659E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D488B3F8-9784-492A-8DFE-3571E509659E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D488B3F8-9784-492A-8DFE-3571E509659E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{D488B3F8-9784-492A-8DFE-3571E509659E} = {3A1EE9CA-A304-45D2-B82C-47BEC3153F0C}
+	EndGlobalSection
+EndGlobal
