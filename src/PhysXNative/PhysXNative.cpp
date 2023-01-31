@@ -14,6 +14,7 @@
 #include <extensions/PxShapeExt.h>
 #include <foundation/PxMat33.h> 
 #include <extensions/PxSimpleFactory.h>
+#include <extensions/PxTriangleMeshExt.h>
 
 using namespace physx;
 
@@ -28,9 +29,13 @@ DllExport(PxHandle*) pxInit() {
     auto physics = PxCreatePhysics(PX_PHYSICS_VERSION, *thing, PxTolerancesScale());
     if(!physics) return nullptr;
 
+    // auto cooking = PxCreateCooking(PX_PHYSICS_VERSION, *thing, PxCookingParams(PxTolerancesScale()));
+    // if(!cooking) return nullptr;
+
     auto handle = new PxHandle();
     handle->Foundation = thing;
     handle->Physics = physics;
+    //handle->Cooking = cooking;
     return handle;
 }
 
@@ -58,6 +63,70 @@ DllExport(void*) pxAddCube(PxSceneHandle* scene, V3d size, V3d position, V4d qua
     }
     return actor;
 } 
+
+DllExport(PxGeometry*) pxCreateBoxGeometry(PxHandle* handle, V3d size) {
+    return new PxBoxGeometry(size.X/2.0, size.Y/2.0, size.Z/2.0);
+}
+
+DllExport(PxGeometry*) pxCreateSphereGeometry(PxHandle* handle, double radius) {
+    return new PxSphereGeometry(radius);
+}
+
+DllExport(PxGeometry*) pxCreatePlaneGeometry(PxHandle* handle) {
+    return new PxPlaneGeometry();
+}
+
+DllExport(PxGeometry*) pxCreateTriangleGeometry(PxHandle* handle, int fvc, const int* indices, int vc, V3f* vertices) {
+//     PxTriangleMeshDesc desc;
+//     desc.points.count = vc;
+//     desc.points.stride = sizeof(V3f);
+//     desc.points.data = vertices;
+
+//     desc.triangles.count = fvc;
+//     desc.triangles.stride = 3*sizeof(PxU32);
+//     desc.triangles.data = indices;
+
+//     PxDefaultMemoryOutputStream writeBuffer;
+//     PxTriangleMeshCookingResult::Enum result;
+
+//     bool status = handle->Cooking->cookTriangleMesh(desc, writeBuffer, &result);
+//     if(!status) return NULL;
+
+//     PxDefaultMemoryInputData readBuffer(writeBuffer.getData(), writeBuffer.getSize());
+//     auto mesh = handle->Physics->createTriangleMesh(readBuffer);
+//     return new PxTriangleMeshGeometry(mesh);
+    return nullptr;
+}
+
+
+DllExport(PxRigidStatic*) pxCreateStatic(PxSceneHandle* scene, PxMaterial* mat, Euclidean3d trafo, PxGeometry* geometry) {
+    PxTransform pose(PxVec3(trafo.Trans.X, trafo.Trans.Y, trafo.Trans.Z), PxQuat(trafo.Rot.X, trafo.Rot.Y, trafo.Rot.Z, trafo.Rot.W));
+    return PxCreateStatic(*scene->Physics, pose, *geometry, *mat);
+}
+
+DllExport(PxRigidDynamic*) pxCreateDynamic(PxSceneHandle* scene, PxMaterial* mat, double density, Euclidean3d trafo, PxGeometry* geometry) {
+    PxTransform pose(PxVec3(trafo.Trans.X, trafo.Trans.Y, trafo.Trans.Z), PxQuat(trafo.Rot.X, trafo.Rot.Y, trafo.Rot.Z, trafo.Rot.W));
+    return PxCreateDynamic(*scene->Physics, pose, *geometry, *mat, density);
+}
+
+DllExport(void) pxAddActor(PxSceneHandle* scene, PxRigidActor* actor) {
+    scene->Scene->addActor(*actor);
+}
+
+DllExport(void) pxRemoveActor(PxSceneHandle* scene, PxRigidActor* actor) {
+    scene->Scene->removeActor(*actor);
+}
+
+
+DllExport(void) pxDestroyActor(PxRigidActor* actor) {
+    actor->release();
+}
+
+DllExport(void) pxDestroyGeometry(PxGeometry* geometry) {
+    delete geometry;
+}
+
+
 DllExport(void*) pxAddStaticPlane(PxSceneHandle* scene, V4d coeff, PxMaterial* mat) {
     PxTransform pose = PxTransformFromPlaneEquation(PxPlane(coeff.X, coeff.Y, coeff.Z, coeff.W));
     PxRigidStatic* plane = scene->Physics->createRigidStatic(pose);
@@ -77,16 +146,19 @@ DllExport(void*) pxSimulate(PxSceneHandle* scene, double dt) {
     }
 }
 
-DllExport(void) pxGetPose(PxRigidActor* actor, V3d& position, V4d& quaternion) {
+DllExport(void) pxGetPose(PxRigidActor* actor, Euclidean3d& trafo) {
     auto pose = actor->getGlobalPose();
-    
-    position.X = pose.p.x;
-    position.Y = pose.p.y;
-    position.Z = pose.p.z;
-    quaternion.X = pose.q.x;
-    quaternion.Y = pose.q.y;
-    quaternion.Z = pose.q.z;
-    quaternion.W = pose.q.w;
+    trafo.Trans.X = pose.p.x;
+    trafo.Trans.Y = pose.p.y;
+    trafo.Trans.Z = pose.p.z;
+    trafo.Rot.X = pose.q.x;
+    trafo.Rot.Y = pose.q.y;
+    trafo.Rot.Z = pose.q.z;
+    trafo.Rot.W = pose.q.w;
+}
+
+DllExport(void) pxSetActorVelocity(PxRigidBody* actor, V3d v) {
+    actor->setLinearVelocity(PxVec3(v.X, v.Y, v.Z));
 }
 
 
@@ -111,6 +183,7 @@ DllExport(PxSceneHandle*) pxCreateScene(PxHandle* handle, V3d gravity) {
     sceneHandle->Foundation = handle->Foundation;
     sceneHandle->Physics = handle->Physics;
     sceneHandle->Scene = scene;
+    sceneHandle->Cooking = handle->Cooking;
     return sceneHandle;
 }
 

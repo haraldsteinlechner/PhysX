@@ -10,6 +10,11 @@
 #endif
 
 #include <PxPhysicsAPI.h>
+typedef struct {
+    float X;
+    float Y;
+    float Z;
+} V3f;
 
 typedef struct {
     double X;
@@ -25,13 +30,27 @@ typedef struct {
 } V4d;
 
 typedef struct {
+    double W;
+    double X;
+    double Y;
+    double Z;
+} Rot3d;
+
+typedef struct {
+    Rot3d Rot;
+    V3d Trans;
+} Euclidean3d;
+
+typedef struct {
     physx::PxFoundation* Foundation;
     physx::PxPhysics* Physics;
+    physx::PxCooking* Cooking;
 } PxHandle;
 
 typedef struct {
     physx::PxFoundation* Foundation;
     physx::PxPhysics* Physics;
+    physx::PxCooking* Cooking;
     physx::PxScene* Scene;
 } PxSceneHandle;
 

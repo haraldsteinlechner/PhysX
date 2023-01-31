@@ -18,7 +18,9 @@
         ".ionide": true,
     },
     "files.associations": {
-        "string": "cpp"
+        "string": "cpp",
+        "__mutex_base": "cpp",
+        "new": "cpp"
     },
     "cmake.sourceDirectory": "${workspaceFolder}/src/PhysXNative"
 }
