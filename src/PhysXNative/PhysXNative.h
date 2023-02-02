@@ -54,6 +54,15 @@ typedef struct {
     physx::PxScene* Scene;
 } PxSceneHandle;
 
+
+typedef struct {
+    physx::PxMaterial* Material;
+    physx::PxGeometry* Geometry;
+    Euclidean3d Pose;
+} PxShapeDescription;
+
+
+
 DllExport(PxHandle*) pxInit();
 DllExport(void) pxDestroy(PxHandle* handle);
 

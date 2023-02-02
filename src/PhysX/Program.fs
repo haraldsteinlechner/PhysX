@@ -88,7 +88,16 @@ module PhysX =
     extern void pxDestroyActor(PhysxActorHandle actor)
 
     [<DllImport("PhysXNative")>]
-    extern void pxSetActorVelocity(PhysxActorHandle actor, V3d v)
+    extern void pxSetLinearVelocity(PhysxActorHandle actor, V3d v)
+    
+    [<DllImport("PhysXNative")>]
+    extern void pxSetAngularVelocity(PhysxActorHandle actor, V3d v)
+
+    [<DllImport("PhysXNative")>]
+    extern V3d pxGetLinearVelocity(PhysxActorHandle actor)
+    
+    [<DllImport("PhysXNative")>]
+    extern V3d pxGetAngularVelocity(PhysxActorHandle actor)
 
 type Material =
     {
@@ -102,13 +111,29 @@ type Geometry =
     | Sphere of radius : double
     | Plane of Plane3d
 
-type PhysXActorDescription =
+type Shape =
     {
-        Geometry    : Geometry
-        Pose        : Euclidean3d
-        Material    : Material
-        Density     : float
-        Velocity    : V3d
+        Geometry : list<Euclidean3d * Geometry>
+        Material : Material
+        Density : float
+        AngularDamping : float
+    }
+
+type PhysXDynamicActorDescription =
+    {
+        Geometry        : Geometry
+        Pose            : Euclidean3d
+        Material        : Material
+        Density         : float
+        Velocity        : V3d
+        AngularVelocity : V3d
+    }
+
+type PhysXStaticActorDescription =
+    {
+        Geometry        : Geometry
+        Pose            : Euclidean3d
+        Material        : Material
     }
 
 type PhysXScene(gravity : V3d) =
@@ -117,74 +142,131 @@ type PhysXScene(gravity : V3d) =
     let physx = physxInstance.Value
     let handle = PhysX.pxCreateScene(physx, gravity)
     let matCache = Dict<Material, PhysXMaterialHandle>()
+    let actors = System.Collections.Generic.HashSet<PhysXActor>()
 
     member x.Handle = handle
+    member internal x.ActorSet = actors
 
-    member x.AddStatic(desc : PhysXActorDescription) =
-        let hMat = matCache.GetOrCreate(desc.Material, fun m -> PhysX.pxCreateMaterial(physx, m.StaticFriction, m.DynamicFriction, m.Restitution))
+    member x.Actors = actors :> seq<_>
 
-        let hGeom = 
-            match desc.Geometry with
-            | Box size -> PhysX.pxCreateBoxGeometry(physx, size)
-            | Sphere radius -> PhysX.pxCreateSphereGeometry(physx, radius)
-            | Plane _ -> PhysX.pxCreatePlaneGeometry(physx)
+    member x.AddStatic(desc : PhysXStaticActorDescription) =
+        lock actors (fun () ->
+            let hMat = matCache.GetOrCreate(desc.Material, fun m -> PhysX.pxCreateMaterial(physx, m.StaticFriction, m.DynamicFriction, m.Restitution))
 
-        let trafo =
-            match desc.Geometry with
-            | Plane p -> desc.Pose * Euclidean3d.Translation(p.Point) * Euclidean3d.RotateInto(V3d.IOO, p.Normal)
-            | _ -> desc.Pose
+            let hGeom = 
+                match desc.Geometry with
+                | Box size -> PhysX.pxCreateBoxGeometry(physx, size)
+                | Sphere radius -> PhysX.pxCreateSphereGeometry(physx, radius)
+                | Plane _ -> PhysX.pxCreatePlaneGeometry(physx)
 
-        let actor =
-            PhysX.pxCreateStatic(handle, hMat, trafo, hGeom)
+            let trafo =
+                match desc.Geometry with
+                | Plane p -> desc.Pose * Euclidean3d.Translation(p.Point) * Euclidean3d.RotateInto(V3d.IOO, p.Normal)
+                | _ -> desc.Pose
 
-        PhysX.pxAddActor(handle, actor)
-        new PhysXActor(x, desc, actor, hGeom)
+            let actor =
+                PhysX.pxCreateStatic(handle, hMat, trafo, hGeom)
 
-    member x.AddDynamic(desc : PhysXActorDescription) =
-        let hMat = matCache.GetOrCreate(desc.Material, fun m -> PhysX.pxCreateMaterial(physx, m.StaticFriction, m.DynamicFriction, m.Restitution))
+            PhysX.pxAddActor(handle, actor)
+            let res = new PhysXActor(x, false, desc.Geometry, actor, hGeom)
+            actors.Add res |> ignore
+            res
+        )
 
-        let hGeom = 
-            match desc.Geometry with
-            | Box size -> PhysX.pxCreateBoxGeometry(physx, size)
-            | Sphere radius -> PhysX.pxCreateSphereGeometry(physx, radius)
-            | Plane _ -> PhysX.pxCreatePlaneGeometry(physx)
+    member x.AddDynamic(desc : PhysXDynamicActorDescription) =
+        lock actors (fun () ->
+            let hMat = matCache.GetOrCreate(desc.Material, fun m -> PhysX.pxCreateMaterial(physx, m.StaticFriction, m.DynamicFriction, m.Restitution))
 
-        let trafo =
-            match desc.Geometry with
-            | Plane p -> desc.Pose * Euclidean3d.Translation(p.Point) * Euclidean3d.RotateInto(V3d.IOO, p.Normal)
-            | _ -> desc.Pose
+            let hGeom = 
+                match desc.Geometry with
+                | Box size -> PhysX.pxCreateBoxGeometry(physx, size)
+                | Sphere radius -> PhysX.pxCreateSphereGeometry(physx, radius)
+                | Plane _ -> PhysX.pxCreatePlaneGeometry(physx)
 
-        let actor =
-            PhysX.pxCreateDynamic(handle, desc.Density, hMat, trafo, hGeom)
+            let trafo =
+                match desc.Geometry with
+                | Plane p -> desc.Pose * Euclidean3d.Translation(p.Point) * Euclidean3d.RotateInto(V3d.IOO, p.Normal)
+                | _ -> desc.Pose
 
-        PhysX.pxAddActor(handle, actor)
+            let actor =
+                PhysX.pxCreateDynamic(handle, desc.Density, hMat, trafo, hGeom)
 
-        if desc.Velocity <> V3d.Zero then
-            PhysX.pxSetActorVelocity(actor, desc.Velocity)
+            PhysX.pxAddActor(handle, actor)
 
-        new PhysXActor(x, desc, actor, hGeom)
+            if desc.Velocity <> V3d.Zero then
+                PhysX.pxSetLinearVelocity(actor, desc.Velocity)
+
+            if desc.AngularVelocity <> V3d.Zero then
+                PhysX.pxSetAngularVelocity(actor, desc.AngularVelocity)
+
+            let res = new PhysXActor(x, true, desc.Geometry, actor, hGeom)
+            actors.Add res |> ignore
+            res
+        )
 
     member x.Simulate(dt : float) =
-        PhysX.pxSimulate(handle, dt)
+        lock actors (fun () ->
+            PhysX.pxSimulate(handle, dt)
+        )
 
     member x.Dispose() =
-        PhysX.pxDestroyScene(handle)
+        lock actors (fun () ->
+            PhysX.pxDestroyScene(handle)
+        )
 
     interface System.IDisposable with
         member x.Dispose() = x.Dispose()
 
-and PhysXActor(parent : PhysXScene, desc : PhysXActorDescription, handle : PhysxActorHandle, geometry : PhysXGeometryHandle) =
-    member x.Geometry = desc.Geometry
+and PhysXActor(parent : PhysXScene, isDynamic : bool, geometryDesc : Geometry, handle : PhysxActorHandle, geometry : PhysXGeometryHandle) =
+    let mutable isDisposed = 0
+    
+    member x.Geometry = geometryDesc
+
+
+    member x.Velocity
+        with get() = 
+            if isDisposed <> 0 then 
+                if isDynamic then PhysX.pxGetLinearVelocity(handle)
+                else V3d.Zero
+            else
+                V3d.Zero
+        and set(v) =
+            if isDisposed <> 0 && isDynamic then PhysX.pxSetLinearVelocity(handle, v)
+
+    member x.AngularVelocity
+        with get() = 
+            if isDisposed <> 0 then 
+                if isDynamic then PhysX.pxGetAngularVelocity(handle)
+                else V3d.Zero
+            else 
+                V3d.Zero
+        and set(v) =
+            if isDisposed <> 0 && isDynamic then PhysX.pxSetAngularVelocity(handle, v)
 
     member x.Pose = 
-        let mutable pose = Euclidean3d.Identity
-        PhysX.pxGetPose(handle, &pose)
-        pose
+        if isDisposed <> 0 then 
+            Euclidean3d.Identity 
+        else
+            let mutable pose = Euclidean3d.Identity
+            PhysX.pxGetPose(handle, &pose)
+            pose
+
+    member x.Position = 
+        if isDisposed <> 0 then 
+            V3d.PositiveInfinity
+        else
+            let mutable pose = Euclidean3d.Identity
+            PhysX.pxGetPose(handle, &pose)
+            pose.Trans
 
     member x.Dispose() =
-        PhysX.pxRemoveActor(parent.Handle, handle)
-        PhysX.pxDestroyActor handle
-        PhysX.pxDestroyGeometry geometry
+        if System.Threading.Interlocked.Exchange(&isDisposed, 1) = 0 then
+            lock parent.ActorSet (fun () ->
+                PhysX.pxRemoveActor(parent.Handle, handle)
+                PhysX.pxDestroyActor handle
+                PhysX.pxDestroyGeometry geometry
+                parent.ActorSet.Remove x |> ignore
+            )
 
     interface System.IDisposable with
         member x.Dispose() = x.Dispose()
@@ -206,9 +288,7 @@ let main args =
         scene.AddStatic {
             Geometry = Plane (Plane3d(V3d.OOI, 0.0))
             Pose = Euclidean3d.Identity
-            Density = 0.0
             Material = mat
-            Velocity = V3d.Zero
         }
         
     let rand = RandomSystem()
@@ -222,25 +302,55 @@ let main args =
             Density = 1.0
             Material = mat
             Velocity = V3d.Zero
+            AngularVelocity = V3d.Zero
         }
 
 
 
-    let box = scene.AddDynamic(randomBox())
-
-
-
-
-    let boxes = cset [box]
-    let spheres = cset []
+    let boxes = cset []
+    let spheres = cmap<PhysXActor, float>()
+    
 
     
+    for x in -5 .. 5 do
+        for y in -5 .. 5 do
+            for z in 0 .. 3 do
+                let p = V3d(float x, float y, float z + 0.5) * 0.5
+
+                let box = 
+                    scene.AddDynamic  {
+                        Geometry = Box V3d.Half
+                        Pose = Euclidean3d.Translation(p)
+                        Density = 1.0
+                        Material = mat
+                        Velocity = V3d.Zero
+                        AngularVelocity = V3d.Zero
+                    }
+                transact (fun () -> boxes.Add box |> ignore)
+
+
+
+
     let mutable run = false
 
     let win = 
         window {
             backend Backend.GL
         }
+
+    let delete = new System.Collections.Concurrent.BlockingCollection<PhysXActor>()
+
+    let deleter =
+        startThread <| fun () ->
+            for a in delete.GetConsumingEnumerable() do
+            
+                transact (fun () ->
+                    lock boxes (fun () ->
+                        boxes.Remove a |> ignore
+                        spheres.Remove a |> ignore
+                    )
+                )
+                a.Dispose()
 
     let sim =
         let sw = System.Diagnostics.Stopwatch()
@@ -249,6 +359,12 @@ let main args =
             sw.Restart()
             if run && dt > 0.0 then 
                 scene.Simulate(dt)
+
+                for a in scene.Actors do
+                    if a.Position.XY.Abs().AnyGreater 20.0 then
+                        delete.Add a
+
+
             scene
         )
 
@@ -261,40 +377,88 @@ let main args =
     let vp =
         (turn, win.View) ||> AVal.map2 (fun t v -> t * v.[0])
 
+    let sw = System.Diagnostics.Stopwatch.StartNew()
+    let now() = sw.Elapsed.TotalSeconds
+
     win.Keyboard.DownWithRepeats.Values.Add (fun k ->
         match k with
         | Keys.Space -> 
             run <- not run
-        | Keys.Enter | Keys.Return -> 
-            let box = scene.AddDynamic (randomBox())
-            transact (fun () -> boxes.Add box |> ignore)
-
+        | Keys.Enter | Keys.Return ->
+            for x in -4 .. 4 do
+                for y in -4 .. 4 do
+                    let p = V3d(float x, float y, 5.0)
+                    let r = rand.UniformV3dDirection()
+                    let a = rand.UniformDouble() * Constant.PiTimesTwo
+                    
+                    let box = 
+                        scene.AddDynamic {
+                            Geometry = Box V3d.Half
+                            Pose = Euclidean3d.Translation(p) * Euclidean3d.Rotation(r, a)
+                            Density = 1.0
+                            Material = mat
+                            Velocity = V3d.Zero
+                            AngularVelocity = V3d.Zero
+                        }
+                    transact (fun () -> lock boxes (fun () -> boxes.Add box |> ignore))
 
         | Keys.Escape-> 
             for a in boxes do a.Dispose()
             let newBox = scene.AddDynamic (randomBox())
             transact (fun () ->
-                boxes.Value <- HashSet.single newBox
+                lock boxes (fun () -> boxes.Value <- HashSet.single newBox)
             )
 
-        | Keys.X -> 
+        | Keys.Q -> 
             let view = AVal.force vp
-            let origin = view.Backward.TransformPos V3d.OOO
-            let dir = view.Backward.TransformDir V3d.OON
 
-            let bullet =
-                scene.AddDynamic {
-                    Geometry = Sphere 0.25
-                    Density = 50.0
-                    Velocity = dir * 40.0
-                    Pose = Euclidean3d.Translation(origin)
-                    Material = mat
-                }
-            transact (fun () ->
-                spheres.Add bullet |> ignore
-            )
 
-            ()
+            for x in -5 .. 5 do
+                for y in -5 .. 5 do
+                    let d = V2d(float x, float y)
+                    if d.Length <= 5.0 then
+                        let o = d * 0.03
+                        let origin = view.Backward.TransformPos V3d.OOO 
+
+                        let dir = view.Backward.TransformDir (V3d(o, -1.0).Normalized)
+                        let origin = origin + dir * 3.0
+
+                        let bullet =
+                            scene.AddDynamic {
+                                Geometry = Sphere 0.05
+                                Density = 1000.0
+                                Velocity = dir * 200.0
+                                Pose = Euclidean3d.Translation(origin)
+                                Material = mat
+                                AngularVelocity = V3d.Zero
+                            }
+                        transact (fun () ->
+                            lock boxes (fun () -> spheres.[bullet] <- now())
+                        )
+            // for i in 1 .. 20 do
+            //     let origin = view.Backward.TransformPos V3d.OOO 
+            //     let phi = rand.UniformDouble() * Constant.PiTimesTwo
+            //     let theta = (rand.UniformDouble() * 2.0 - 1.0) * Constant.RadiansPerDegree * 5.0
+
+
+
+
+            //     printfn "%A" (V3d(sin theta * cos phi, sin theta * sin phi, -cos theta))
+            //     let dir = view.Backward.TransformDir (V3d(sin theta * cos phi, sin theta * sin phi, -cos theta))
+            //     let origin = origin + dir * 10.0
+
+            //     let bullet =
+            //         scene.AddDynamic {
+            //             Geometry = Sphere 0.1
+            //             Density = 1000.0
+            //             Velocity = V3d.Zero //dir * 100.0
+            //             Pose = Euclidean3d.Translation(origin)
+            //             Material = mat
+            //             AngularVelocity = V3d.Zero
+            //         }
+            //     transact (fun () ->
+            //         lock boxes (fun () -> spheres.[bullet] <- now())
+            //     )
 
         | _ -> ()
     )
@@ -307,13 +471,16 @@ let main args =
             a |> HashSet.toArray |> Array.map (fun m -> m.Pose |> Euclidean3d.op_Explicit : Trafo3d)
         
         )
-        
+
     let sphereTrafos = 
-        let actors = ASet.toAVal spheres
+        let actors = AMap.toAVal spheres
         AVal.custom (fun t ->
             let sim = sim.GetValue t 
             let a = actors.GetValue t
-            a |> HashSet.toArray |> Array.map (fun m -> m.Pose |> Euclidean3d.op_Explicit : Trafo3d)
+
+            
+
+            a |> HashMap.toKeyArray |> Array.map (fun m -> m.Pose |> Euclidean3d.op_Explicit : Trafo3d)
         
         )
     win.Scene <-
@@ -325,7 +492,7 @@ let main args =
                 do! DefaultSurfaces.simpleLighting
             }
             
-            Sg.sphere' 5 C4b.Red 0.25
+            Sg.sphere' 5 C4b.Red 0.05
             |> Sg.instanced sphereTrafos
             |> Sg.shader {
                 do! DefaultSurfaces.trafo

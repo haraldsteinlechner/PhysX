@@ -53,18 +53,8 @@ DllExport(void) pxDestroyMaterial(PxMaterial* mat) {
     mat->release();
 }
 
-DllExport(void*) pxAddCube(PxSceneHandle* scene, V3d size, V3d position, V4d quaternion, PxMaterial* mat, double density) {
-    PxTransform transform(PxVec3(position.X, position.Y, position.Z), PxQuat(quaternion.X, quaternion.Y, quaternion.Z, quaternion.W));
-    PxBoxGeometry geometry(size.X, size.Y, size.Z);
-    PxRigidDynamic* actor = PxCreateDynamic(*scene->Physics, transform, geometry, *mat, density);
-    if(actor) {
-        actor->setAngularDamping(0.75);
-        scene->Scene->addActor(*actor);
-    }
-    return actor;
-} 
-
 DllExport(PxGeometry*) pxCreateBoxGeometry(PxHandle* handle, V3d size) {
+    
     return new PxBoxGeometry(size.X/2.0, size.Y/2.0, size.Z/2.0);
 }
 
@@ -75,6 +65,7 @@ DllExport(PxGeometry*) pxCreateSphereGeometry(PxHandle* handle, double radius) {
 DllExport(PxGeometry*) pxCreatePlaneGeometry(PxHandle* handle) {
     return new PxPlaneGeometry();
 }
+
 
 DllExport(PxGeometry*) pxCreateTriangleGeometry(PxHandle* handle, int fvc, const int* indices, int vc, V3f* vertices) {
 //     PxTriangleMeshDesc desc;
@@ -104,10 +95,53 @@ DllExport(PxRigidStatic*) pxCreateStatic(PxSceneHandle* scene, PxMaterial* mat, 
     return PxCreateStatic(*scene->Physics, pose, *geometry, *mat);
 }
 
+DllExport(PxRigidDynamic*) pxCreateDynamicComposite(PxSceneHandle* scene, double density, Euclidean3d trafo, int count, PxShapeDescription* shapes) {
+    PxTransform pose(PxVec3(trafo.Trans.X, trafo.Trans.Y, trafo.Trans.Z), PxQuat(trafo.Rot.X, trafo.Rot.Y, trafo.Rot.Z, trafo.Rot.W));
+    auto thing = scene->Physics->createRigidDynamic(pose);
+
+    for(int i = 0; i < count; i++) {
+        auto d = &shapes[i];
+        PxTransform pose(PxVec3(d->Pose.Trans.X, d->Pose.Trans.Y, d->Pose.Trans.Z), PxQuat(d->Pose.Rot.X, d->Pose.Rot.Y, d->Pose.Rot.Z, d->Pose.Rot.W));
+        auto shape = scene->Physics->createShape(*d->Geometry, *d->Material);
+        shape->setLocalPose(pose);
+        
+        thing->attachShape(*shape);
+    
+    }
+    PxRigidBodyExt::updateMassAndInertia(*thing, density);
+    return thing;
+}
+
 DllExport(PxRigidDynamic*) pxCreateDynamic(PxSceneHandle* scene, PxMaterial* mat, double density, Euclidean3d trafo, PxGeometry* geometry) {
     PxTransform pose(PxVec3(trafo.Trans.X, trafo.Trans.Y, trafo.Trans.Z), PxQuat(trafo.Rot.X, trafo.Rot.Y, trafo.Rot.Z, trafo.Rot.W));
     return PxCreateDynamic(*scene->Physics, pose, *geometry, *mat, density);
 }
+
+DllExport(void) pxSetLinearVelocity(PxRigidDynamic* actor, V3d vel) {
+    actor->setLinearVelocity(PxVec3(vel.X, vel.Y, vel.Z));
+}
+
+DllExport(void) pxSetAngularVelocity(PxRigidDynamic* actor, V3d vel) {
+    actor->setAngularVelocity(PxVec3(vel.X, vel.Y, vel.Z));
+}
+
+DllExport(void) pxSetDensity(PxRigidDynamic* actor, double density) {
+    PxRigidBodyExt::updateMassAndInertia(*actor, density);
+}
+
+
+DllExport(V3d) pxGetLinearVelocity(PxRigidDynamic* actor, V3d vel) {
+    auto v = actor->getLinearVelocity();
+    return {v.x, v.y, v.z};
+}
+
+DllExport(V3d) pxGetAngularVelocity(PxRigidDynamic* actor, V3d vel) {
+    auto v = actor->getAngularVelocity();
+    return {v.x, v.y, v.z};
+}
+
+
+
 
 DllExport(void) pxAddActor(PxSceneHandle* scene, PxRigidActor* actor) {
     scene->Scene->addActor(*actor);
@@ -157,10 +191,6 @@ DllExport(void) pxGetPose(PxRigidActor* actor, Euclidean3d& trafo) {
     trafo.Rot.W = pose.q.w;
 }
 
-DllExport(void) pxSetActorVelocity(PxRigidBody* actor, V3d v) {
-    actor->setLinearVelocity(PxVec3(v.X, v.Y, v.Z));
-}
-
 
 DllExport(PxSceneHandle*) pxCreateScene(PxHandle* handle, V3d gravity) {
     PxSceneDesc sceneDesc(handle->Physics->getTolerancesScale());
@@ -190,76 +220,4 @@ DllExport(PxSceneHandle*) pxCreateScene(PxHandle* handle, V3d gravity) {
 DllExport(void) pxDestroyScene(PxSceneHandle* handle) {
     handle->Scene->release();
     delete handle;
-}
-
-DllExport(int) pxTest() {
-
-    auto thing = PxCreateFoundation(PX_PHYSICS_VERSION, gDefaultAllocatorCallback, gDefaultErrorCallback);
-    auto physics = PxCreatePhysics(PX_PHYSICS_VERSION, *thing, PxTolerancesScale());
-    if(!physics) {
-        return -1;
-    }
-
-    if(!PxInitExtensions(*physics, nullptr)) {
-        return -1;
-    }
-
-    PxSceneDesc sceneDesc(physics->getTolerancesScale());
-    sceneDesc.gravity = PxVec3(0.0f, 0.0f, -9.81f);
-    
-    if(!sceneDesc.cpuDispatcher) {
-        PxDefaultCpuDispatcher* mCpuDispatcher = PxDefaultCpuDispatcherCreate(1);
-        if(!mCpuDispatcher) return -1;
-        sceneDesc.cpuDispatcher = mCpuDispatcher;
-    }
-    if(!sceneDesc.filterShader)
-        sceneDesc.filterShader = gDefaultFilterShader;
-
-
-    auto scene = physics->createScene(sceneDesc);
-    scene->setVisualizationParameter(PxVisualizationParameter::eSCALE, 1.0);
-    scene->setVisualizationParameter(PxVisualizationParameter::eCOLLISION_SHAPES, 1.0f);
-
-    auto mat = physics->createMaterial(0.5f, 0.5f, 0.6f);
-
-    
-    //1) Create ground plane
-    PxTransform pose = PxTransformFromPlaneEquation(PxPlane(0, 0, 1, 0));
-    PxRigidStatic* plane = physics->createRigidStatic(pose);
-    if(!plane) return -1;
-
-    auto planeShape = physics->createShape(PxPlaneGeometry(), *mat);
-    planeShape->setName("floor");
-    plane->attachShape(*planeShape);
-    scene->addActor(*plane);
-
-    PxVec3 boxSize(0.5, 0.5, 0.5);
-    PxBoxGeometry boxGeometry(boxSize);
-
-    PxTransform transform(PxVec3(0, 0, 5));
-    auto box = PxCreateDynamic(*physics, transform, boxGeometry, *mat, 1.0);
-    box->setLinearVelocity(PxVec3(0, 0, 0.0f));
-    box->setAngularDamping(0.75);
-
-    scene->addActor(*box);
-
-
-    auto p0 = box->getGlobalPose();
-    printf("%.2f %.2f %.2f\n", p0.p.x, p0.p.y, p0.p.z);
-
-    for (int i = 0; i < 1000; i++) {
-        scene->simulate(1.0f/60.0f);
-        scene->fetchResults(true);
-
-        auto pose = box->getGlobalPose();
-        printf("%.2f %.2f %.2f\n", pose.p.x, pose.p.y, pose.p.z);
-
-    }
-
-
-    scene->release();
-    physics->release();
-
-    return 0;
-
 }

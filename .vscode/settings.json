@@ -20,7 +20,9 @@
     "files.associations": {
         "string": "cpp",
         "__mutex_base": "cpp",
-        "new": "cpp"
+        "new": "cpp",
+        "bitset": "cpp",
+        "set": "cpp"
     },
     "cmake.sourceDirectory": "${workspaceFolder}/src/PhysXNative"
 }
