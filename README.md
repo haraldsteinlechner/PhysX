@@ -1,6 +1,13 @@
 very raw WIP  on physx for aardvark
 
-![image](https://user-images.githubusercontent.com/513281/216617404-6a616147-055e-4e9f-908c-18a4cae4e10e.png)
+just run the project:
+- dotnet tool restore
+- dotnet paket restore
+- open visual studio, run
+- Unhandled exception. System.Runtime.InteropServices.SEHException (0x80004005): External component has thrown an exception.
+- copy contents of libs\Native\PhysX\windows\AMD64 to the output (e.g. bin\Debug\net6.0)
+- the demo should now work
+
 
 space: pause/run simulation
 q: shoot things
@@ -8,7 +15,7 @@ enter: create more boxes
 
 
 
-- for building PhysxNative project run cmake like that:
+- if you need to change the c++ wrapper code (e.g. wrapping new stuff, fixing bugs), you need to create a visual studio project using cmake..
 
 download sdk prebuilts (see discord) - thoe are debug builds - stay with debug everywhere currently
 
