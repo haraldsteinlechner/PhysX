@@ -1,7 +1,5 @@
 very raw WIP  on physx for aardvark
 
-very raw WIP  on physx for aardvark
-
 ![image](https://user-images.githubusercontent.com/513281/216617404-6a616147-055e-4e9f-908c-18a4cae4e10e.png)
 
 just run the project:
