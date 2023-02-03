@@ -1,5 +1,9 @@
 very raw WIP  on physx for aardvark
 
+very raw WIP  on physx for aardvark
+
+![image](https://user-images.githubusercontent.com/513281/216617404-6a616147-055e-4e9f-908c-18a4cae4e10e.png)
+
 just run the project:
 - dotnet tool restore
 - dotnet paket restore
@@ -22,10 +26,10 @@ download sdk prebuilts (see discord) - thoe are debug builds - stay with debug e
 copy the binaries found on discord to: libs\Native\PhysX\windows\AMD64
 
 ![image](https://user-images.githubusercontent.com/513281/216617060-01c2be79-f4d7-41fa-9f89-d6ea61dce3af.png)
-use v141 toolset
+if you have problems you might need to use v141 toolset  (just tested with everything default and it worked)
 ![image](https://user-images.githubusercontent.com/513281/216617157-7366b570-efab-4d97-a9fd-c6417ec8c7b5.png)
 
-the install target should take care of copying the files to libs\Native\PhysX\windows\AMD64 which should then be used when running the demo. to be sure, one can copy the output to the bin folder explicitly.
+the install target should take care of copying the files to libs\Native\PhysX\windows\AMD64 which should then be used when running the demo. to be sure, copy to the output folder also
 ![image](https://user-images.githubusercontent.com/513281/216618962-27e8cbaa-3be5-49e7-9321-cf3cafe929aa.png)
 
 
