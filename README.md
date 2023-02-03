@@ -31,6 +31,6 @@ the install target should take care of copying the files to libs\Native\PhysX\wi
 ![image](https://user-images.githubusercontent.com/513281/216618962-27e8cbaa-3be5-49e7-9321-cf3cafe929aa.png)
 
 
-copy those to the output folder:
+also copy those to the output folder (you should have done that already when running just the demo)
 
 ![image](https://user-images.githubusercontent.com/513281/216616891-59efaca9-b30f-4600-9e8d-49a604545f0d.png)
