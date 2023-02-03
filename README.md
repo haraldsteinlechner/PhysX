@@ -22,7 +22,7 @@ enter: create more boxes
 download sdk prebuilts (see discord) - thoe are debug builds - stay with debug everywhere currently.
 the folder should look like: ![image](https://user-images.githubusercontent.com/513281/216637245-ef8ae54c-edf9-4781-a328-7cf3c9640467.png)
 
-copy the binaries found on discord to: libs\Native\PhysX\windows\AMD64
+copy the binaries found on discord to: libs\Native\PhysX\windows\AMD64 - this way the will get found by cmake:
 
 ![image](https://user-images.githubusercontent.com/513281/216617060-01c2be79-f4d7-41fa-9f89-d6ea61dce3af.png)
 if you have problems you might need to use v141 toolset  (just tested with everything default and it worked)
