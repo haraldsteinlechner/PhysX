@@ -19,7 +19,8 @@ enter: create more boxes
 
 - if you need to change the c++ wrapper code (e.g. wrapping new stuff, fixing bugs), you need to create a visual studio project using cmake..
 
-download sdk prebuilts (see discord) - thoe are debug builds - stay with debug everywhere currently
+download sdk prebuilts (see discord) - thoe are debug builds - stay with debug everywhere currently.
+the folder should look like: ![image](https://user-images.githubusercontent.com/513281/216637245-ef8ae54c-edf9-4781-a328-7cf3c9640467.png)
 
 copy the binaries found on discord to: libs\Native\PhysX\windows\AMD64
 
