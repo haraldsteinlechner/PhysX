@@ -27,8 +27,9 @@ copy the binaries found on discord to: libs\Native\PhysX\windows\AMD64
 if you have problems you might need to use v141 toolset  (just tested with everything default and it worked)
 ![image](https://user-images.githubusercontent.com/513281/216617157-7366b570-efab-4d97-a9fd-c6417ec8c7b5.png)
 
-the install target should take care of copying the files to libs\Native\PhysX\windows\AMD64 which should then be used when running the demo. to be sure, copy to the output folder also
-![image](https://user-images.githubusercontent.com/513281/216618962-27e8cbaa-3be5-49e7-9321-cf3cafe929aa.png)
+the install target (in the generated solution) updates the libs/Native/Physx/windows/AMD64 folder but currently fails to copy the new dll over into the output folder. so this needs to be done manually:
+![image](https://user-images.githubusercontent.com/513281/216637063-b3fddbe1-a5e7-49c9-b1fc-abd31a73f28f.png)
+
 
 
 also copy those to the output folder (you should have done that already when running just the demo)
