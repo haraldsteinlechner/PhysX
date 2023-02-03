@@ -5,7 +5,7 @@ very raw WIP  on physx for aardvark
 just run the project:
 - dotnet tool restore
 - dotnet paket restore
-- open visual studio 2022, run
+- open the solution in visual studio 2022, run
 - Unhandled exception. System.Runtime.InteropServices.SEHException (0x80004005): External component has thrown an exception.
 - copy contents of libs\Native\PhysX\windows\AMD64 to the output (e.g. bin\Debug\net6.0)
 - the demo should now work
