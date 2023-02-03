@@ -45,8 +45,12 @@ DllExport(void) pxDestroy(PxHandle* handle) {
     delete handle;
 }
 
-DllExport(PxMaterial*) pxCreateMaterial(PxHandle* handle, double staticFriction, double dynamicFriction, double restitution) {
-    return handle->Physics->createMaterial(staticFriction, dynamicFriction, restitution);
+DllExport(PxMaterial*) pxCreateMaterial(PxHandle* handle, float staticFriction, float dynamicFriction, float restitution) {
+    auto a = handle->Physics->createMaterial(staticFriction, dynamicFriction, restitution);
+    a->acquireReference();
+    a->acquireReference();
+    a->acquireReference();
+    return a;
 }
 
 DllExport(void) pxDestroyMaterial(PxMaterial* mat) {
@@ -55,10 +59,10 @@ DllExport(void) pxDestroyMaterial(PxMaterial* mat) {
 
 DllExport(PxGeometry*) pxCreateBoxGeometry(PxHandle* handle, V3d size) {
     
-    return new PxBoxGeometry(size.X/2.0, size.Y/2.0, size.Z/2.0);
+    return new PxBoxGeometry((float)size.X/2.0, (float)size.Y/2.0, (float)size.Z/2.0);
 }
 
-DllExport(PxGeometry*) pxCreateSphereGeometry(PxHandle* handle, double radius) {
+DllExport(PxGeometry*) pxCreateSphereGeometry(PxHandle* handle, float radius) {
     return new PxSphereGeometry(radius);
 }
 
@@ -91,17 +95,17 @@ DllExport(PxGeometry*) pxCreateTriangleGeometry(PxHandle* handle, int fvc, const
 
 
 DllExport(PxRigidStatic*) pxCreateStatic(PxSceneHandle* scene, PxMaterial* mat, Euclidean3d trafo, PxGeometry* geometry) {
-    PxTransform pose(PxVec3(trafo.Trans.X, trafo.Trans.Y, trafo.Trans.Z), PxQuat(trafo.Rot.X, trafo.Rot.Y, trafo.Rot.Z, trafo.Rot.W));
+    PxTransform pose(PxVec3((float)trafo.Trans.X, (float)trafo.Trans.Y, (float)trafo.Trans.Z), PxQuat((float)trafo.Rot.X, (float)trafo.Rot.Y, (float)trafo.Rot.Z, (float)trafo.Rot.W));
     return PxCreateStatic(*scene->Physics, pose, *geometry, *mat);
 }
 
-DllExport(PxRigidDynamic*) pxCreateDynamicComposite(PxSceneHandle* scene, double density, Euclidean3d trafo, int count, PxShapeDescription* shapes) {
-    PxTransform pose(PxVec3(trafo.Trans.X, trafo.Trans.Y, trafo.Trans.Z), PxQuat(trafo.Rot.X, trafo.Rot.Y, trafo.Rot.Z, trafo.Rot.W));
+DllExport(PxRigidDynamic*) pxCreateDynamicComposite(PxSceneHandle* scene, float density, Euclidean3d trafo, int count, PxShapeDescription* shapes) {
+    PxTransform pose(PxVec3((float)trafo.Trans.X, (float)trafo.Trans.Y, (float)trafo.Trans.Z), PxQuat((float)trafo.Rot.X, (float)trafo.Rot.Y, (float)trafo.Rot.Z, (float)trafo.Rot.W));
     auto thing = scene->Physics->createRigidDynamic(pose);
 
     for(int i = 0; i < count; i++) {
         auto d = &shapes[i];
-        PxTransform pose(PxVec3(d->Pose.Trans.X, d->Pose.Trans.Y, d->Pose.Trans.Z), PxQuat(d->Pose.Rot.X, d->Pose.Rot.Y, d->Pose.Rot.Z, d->Pose.Rot.W));
+        PxTransform pose(PxVec3((float)d->Pose.Trans.X, (float)d->Pose.Trans.Y, (float)d->Pose.Trans.Z), PxQuat((float)d->Pose.Rot.X, (float)d->Pose.Rot.Y, (float)d->Pose.Rot.Z, (float)d->Pose.Rot.W));
         auto shape = scene->Physics->createShape(*d->Geometry, *d->Material);
         shape->setLocalPose(pose);
         
@@ -112,20 +116,20 @@ DllExport(PxRigidDynamic*) pxCreateDynamicComposite(PxSceneHandle* scene, double
     return thing;
 }
 
-DllExport(PxRigidDynamic*) pxCreateDynamic(PxSceneHandle* scene, PxMaterial* mat, double density, Euclidean3d trafo, PxGeometry* geometry) {
-    PxTransform pose(PxVec3(trafo.Trans.X, trafo.Trans.Y, trafo.Trans.Z), PxQuat(trafo.Rot.X, trafo.Rot.Y, trafo.Rot.Z, trafo.Rot.W));
+DllExport(PxRigidDynamic*) pxCreateDynamic(PxSceneHandle* scene, PxMaterial* mat, float density, Euclidean3d trafo, PxGeometry* geometry) {
+    PxTransform pose(PxVec3((float)trafo.Trans.X, (float)trafo.Trans.Y, (float)trafo.Trans.Z), PxQuat((float)trafo.Rot.X, (float)trafo.Rot.Y, (float)trafo.Rot.Z, (float)trafo.Rot.W));
     return PxCreateDynamic(*scene->Physics, pose, *geometry, *mat, density);
 }
 
 DllExport(void) pxSetLinearVelocity(PxRigidDynamic* actor, V3d vel) {
-    actor->setLinearVelocity(PxVec3(vel.X, vel.Y, vel.Z));
+    actor->setLinearVelocity(PxVec3((float)vel.X, (float)vel.Y, (float)vel.Z));
 }
 
 DllExport(void) pxSetAngularVelocity(PxRigidDynamic* actor, V3d vel) {
-    actor->setAngularVelocity(PxVec3(vel.X, vel.Y, vel.Z));
+    actor->setAngularVelocity(PxVec3((float)vel.X, (float)vel.Y, (float)vel.Z));
 }
 
-DllExport(void) pxSetDensity(PxRigidDynamic* actor, double density) {
+DllExport(void) pxSetDensity(PxRigidDynamic* actor, float density) {
     PxRigidBodyExt::updateMassAndInertia(*actor, density);
 }
 
@@ -162,7 +166,7 @@ DllExport(void) pxDestroyGeometry(PxGeometry* geometry) {
 
 
 DllExport(void*) pxAddStaticPlane(PxSceneHandle* scene, V4d coeff, PxMaterial* mat) {
-    PxTransform pose = PxTransformFromPlaneEquation(PxPlane(coeff.X, coeff.Y, coeff.Z, coeff.W));
+    PxTransform pose = PxTransformFromPlaneEquation(PxPlane((float)coeff.X, (float)coeff.Y, (float)coeff.Z, (float)coeff.W));
     PxRigidStatic* plane = scene->Physics->createRigidStatic(pose);
 
     auto planeShape = scene->Physics->createShape(PxPlaneGeometry(), *mat);
@@ -173,7 +177,7 @@ DllExport(void*) pxAddStaticPlane(PxSceneHandle* scene, V4d coeff, PxMaterial* m
 } 
 
 
-DllExport(void*) pxSimulate(PxSceneHandle* scene, double dt) {
+DllExport(void) pxSimulate(PxSceneHandle* scene, float dt) {
     if(dt > 0.0) {
         scene->Scene->simulate(dt);
         scene->Scene->fetchResults(true);
@@ -194,7 +198,7 @@ DllExport(void) pxGetPose(PxRigidActor* actor, Euclidean3d& trafo) {
 
 DllExport(PxSceneHandle*) pxCreateScene(PxHandle* handle, V3d gravity) {
     PxSceneDesc sceneDesc(handle->Physics->getTolerancesScale());
-    sceneDesc.gravity = PxVec3(gravity.X, gravity.Y, gravity.Z);
+    sceneDesc.gravity = PxVec3((float)gravity.X, (float)gravity.Y, (float)gravity.Z);
     
     if(!sceneDesc.cpuDispatcher) {
         PxDefaultCpuDispatcher* mCpuDispatcher = PxDefaultCpuDispatcherCreate(1);
@@ -220,4 +224,8 @@ DllExport(PxSceneHandle*) pxCreateScene(PxHandle* handle, V3d gravity) {
 DllExport(void) pxDestroyScene(PxSceneHandle* handle) {
     handle->Scene->release();
     delete handle;
+}
+
+int main(int argc, char** argv) {
+    return 0;
 }

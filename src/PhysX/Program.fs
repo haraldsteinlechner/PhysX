@@ -40,19 +40,19 @@ module PhysX =
     extern void pxDestroyScene(PhysXSceneHandle scene)
 
     [<DllImport("PhysXNative")>]
-    extern PhysXMaterialHandle pxCreateMaterial(PhysXHandle handle, float staticFriction, float dynamicFriction, float restitution)
+    extern PhysXMaterialHandle pxCreateMaterial(PhysXHandle handle, float32 staticFriction, float32 dynamicFriction, float32 restitution)
 
     [<DllImport("PhysXNative")>]
     extern void pxDestroyMaterial(PhysXMaterialHandle material)
     
     [<DllImport("PhysXNative")>]
-    extern PhysxActorHandle pxAddCube(PhysXSceneHandle scene, V3d size, V3d position, V4d quat, PhysXMaterialHandle mat, double density)
+    extern PhysxActorHandle pxAddCube(PhysXSceneHandle scene, V3d size, V3d position, V4d quat, PhysXMaterialHandle mat, float32 density)
 
     [<DllImport("PhysXNative")>]
     extern PhysxActorHandle pxAddStaticPlane(PhysXSceneHandle scene, V4d coeff, PhysXMaterialHandle mat)
 
     [<DllImport("PhysXNative")>]
-    extern void pxSimulate(PhysXSceneHandle scene, double dt)
+    extern void pxSimulate(PhysXSceneHandle scene, float32 dt)
 
     [<DllImport("PhysXNative")>]
     extern void pxGetPose(PhysxActorHandle thing, Euclidean3d& trafo)
@@ -61,7 +61,7 @@ module PhysX =
     extern PhysXGeometryHandle pxCreateBoxGeometry(PhysXHandle handle, V3d size)
 
     [<DllImport("PhysXNative")>]
-    extern PhysXGeometryHandle pxCreateSphereGeometry(PhysXHandle handle, double radius)
+    extern PhysXGeometryHandle pxCreateSphereGeometry(PhysXHandle handle, float32 radius)
     
     [<DllImport("PhysXNative")>]
     extern PhysXGeometryHandle pxCreatePlaneGeometry(PhysXHandle handle)
@@ -76,7 +76,7 @@ module PhysX =
     extern PhysxActorHandle pxCreateStatic(PhysXSceneHandle scene, PhysXMaterialHandle mat, Euclidean3d trafo, PhysXGeometryHandle geometry)
 
     [<DllImport("PhysXNative")>]
-    extern PhysxActorHandle pxCreateDynamic(PhysXSceneHandle scene, double density, PhysXMaterialHandle mat, Euclidean3d trafo, PhysXGeometryHandle geometry)
+    extern PhysxActorHandle pxCreateDynamic(PhysXSceneHandle scene, PhysXMaterialHandle mat, float32 density, Euclidean3d trafo, PhysXGeometryHandle geometry)
 
     [<DllImport("PhysXNative")>]
     extern void pxAddActor(PhysXSceneHandle scene, PhysxActorHandle actor)
@@ -151,12 +151,12 @@ type PhysXScene(gravity : V3d) =
 
     member x.AddStatic(desc : PhysXStaticActorDescription) =
         lock actors (fun () ->
-            let hMat = matCache.GetOrCreate(desc.Material, fun m -> PhysX.pxCreateMaterial(physx, m.StaticFriction, m.DynamicFriction, m.Restitution))
+            let hMat = matCache.GetOrCreate(desc.Material, fun m -> PhysX.pxCreateMaterial(physx, float32 m.StaticFriction,float32 m.DynamicFriction, float32 m.Restitution))
 
             let hGeom = 
                 match desc.Geometry with
                 | Box size -> PhysX.pxCreateBoxGeometry(physx, size)
-                | Sphere radius -> PhysX.pxCreateSphereGeometry(physx, radius)
+                | Sphere radius -> PhysX.pxCreateSphereGeometry(physx, float32 radius)
                 | Plane _ -> PhysX.pxCreatePlaneGeometry(physx)
 
             let trafo =
@@ -175,12 +175,13 @@ type PhysXScene(gravity : V3d) =
 
     member x.AddDynamic(desc : PhysXDynamicActorDescription) =
         lock actors (fun () ->
-            let hMat = matCache.GetOrCreate(desc.Material, fun m -> PhysX.pxCreateMaterial(physx, m.StaticFriction, m.DynamicFriction, m.Restitution))
+            let hMat = 
+                matCache.GetOrCreate(desc.Material, fun m -> PhysX.pxCreateMaterial(physx, float32 m.StaticFriction, float32 m.DynamicFriction, float32 m.Restitution))
 
             let hGeom = 
                 match desc.Geometry with
                 | Box size -> PhysX.pxCreateBoxGeometry(physx, size)
-                | Sphere radius -> PhysX.pxCreateSphereGeometry(physx, radius)
+                | Sphere radius -> PhysX.pxCreateSphereGeometry(physx, float32 radius)
                 | Plane _ -> PhysX.pxCreatePlaneGeometry(physx)
 
             let trafo =
@@ -189,7 +190,7 @@ type PhysXScene(gravity : V3d) =
                 | _ -> desc.Pose
 
             let actor =
-                PhysX.pxCreateDynamic(handle, desc.Density, hMat, trafo, hGeom)
+                PhysX.pxCreateDynamic(handle, hMat, float32 desc.Density, trafo, hGeom)
 
             PhysX.pxAddActor(handle, actor)
 
@@ -206,7 +207,7 @@ type PhysXScene(gravity : V3d) =
 
     member x.Simulate(dt : float) =
         lock actors (fun () ->
-            PhysX.pxSimulate(handle, dt)
+            PhysX.pxSimulate(handle, float32 dt)
         )
 
     member x.Dispose() =
@@ -427,7 +428,7 @@ let main args =
                             scene.AddDynamic {
                                 Geometry = Sphere 0.05
                                 Density = 1000.0
-                                Velocity = dir * 200.0
+                                Velocity = dir * 10.0
                                 Pose = Euclidean3d.Translation(origin)
                                 Material = mat
                                 AngularVelocity = V3d.Zero

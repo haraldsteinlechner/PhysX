@@ -68,3 +68,4 @@ DllExport(void) pxDestroy(PxHandle* handle);
 
 DllExport(PxSceneHandle*) pxCreateScene(PxHandle* handle, V3d gravity);
 DllExport(void) pxDestroyScene(PxSceneHandle* handle);
+DllExport(void) pxSimulate(PxSceneHandle* scene, float dt);

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "PhysX": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}
