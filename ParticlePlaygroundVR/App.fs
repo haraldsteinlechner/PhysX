@@ -1,5 +1,6 @@
 ﻿namespace ParticlePlaygroundVR
 
+open System
 open Aardvark.Base
 open Aardvark.Rendering.Text
 open Aardvark.Vr
@@ -11,40 +12,133 @@ open Aardvark.Application.OpenVR
 
 open FSharp.Data.Adaptive
 
+open Aardvark.PhysX
+
 type Message =
     | SetText of string 
     | ToggleVR
     | UpdatePose
+    | MyRendered
+    | Shoot
+    | CameraMessage of FreeFlyController.Message
 
 module Demo =
     open Aardvark.Rendering
     
-    let show  (att : list<string * AttributeValue<_>>) (sg : ISg<_>) =
+    let show  (model : AdaptiveModel) (att : list<string * AttributeValue<_>>) (sg : ISg<_>) =
 
         let view (m : AdaptiveCameraControllerState) =
             let frustum = Frustum.perspective 60.0 0.1 1000.0 1.0 |> AVal.constant
             FreeFlyController.controlledControl m id frustum (AttributeMap.ofList att) sg
 
-        let app =
+        view model.cameraController
+
+    let initial () = 
+        let scene = new PhysXScene(V3d(0.0, 0.0, -9.81))
+
+        
+        let mat =
             {
-                initial = FreeFlyController.initial
-                update = FreeFlyController.update
-                view = view
-                threads = FreeFlyController.threads
-                unpersist = Unpersist.instance
+                StaticFriction = 0.5
+                DynamicFriction = 0.5
+                Restitution = 0.5
+            }
+        let plane = 
+            scene.AddStatic {
+                Geometry = Plane (Plane3d(V3d.OOI, 0.0))
+                Pose = Euclidean3d.Identity
+                Material = mat
             }
 
-        subApp app
+    
+        let boxes =
+            [
+                for x in -5 .. 5 do
+                    for y in -5 .. 5 do
+                        for z in 0 .. 3 do
+                            let p = V3d(float x, float y, float z + 0.5) * 0.5
 
-    let initial = 
+                            let box = 
+                                scene.AddDynamic  {
+                                    Geometry = Box V3d.Half
+                                    Pose = Euclidean3d.Translation(p)
+                                    Density = 1.0
+                                    Material = mat
+                                    Velocity = V3d.Zero
+                                    AngularVelocity = V3d.Zero
+                                }
+                            yield box
+            ] |> HashSet.ofList
+
+
+
         {
             text = "some text"
             vr = false
+            scene = scene
+            boxes = boxes
+            lastSimulation = None
+            spheres = HashMap.empty
+            cameraController = FreeFlyController.initial 
+            version = 0
         }
         
+    let sw = System.Diagnostics.Stopwatch()
         
     let update (state : VrState) (vr : VrActions) (model : Model) (msg : Message) =
+  
+        let model = 
+            match model.lastSimulation with
+            | None -> 
+                { model with lastSimulation = Some DateTime.Now; version = model.version + 1 }
+            | Some l -> 
+                let dt = (DateTime.Now - l).TotalSeconds
+                if dt < 0.1  then
+                    model.scene.Simulate (float dt)
+                    { model with lastSimulation = Some DateTime.Now; version = model.version + 1 }
+                else
+                    { model with lastSimulation = Some DateTime.Now; version = model.version + 1 }
+
         match msg with
+        | CameraMessage msg -> { model with cameraController = FreeFlyController.update model.cameraController msg }
+        | Shoot -> 
+            let now = sw.Elapsed.TotalSeconds
+            let view = model.cameraController.view
+            let mat =
+                {
+                    StaticFriction = 0.5
+                    DynamicFriction = 0.5
+                    Restitution = 0.5
+                }
+
+            let spheres = 
+                [
+                    for x in  0 .. 5 do
+                        for y in 0 .. 5 do
+                            let d = V2d(float x, float y)
+                            if d.Length <= 5.0 then
+                                let o = d * 0.08
+                                let origin = view.Location + o.X * view.Right + o.Y * view.Up
+
+                                let dir = view.Forward
+                                let origin = origin + dir * 3.0
+
+                                let bullet =
+                                    model.scene.AddDynamic {
+                                        Geometry = Sphere 0.05
+                                        Density = 1000.0
+                                        Velocity = dir * 10.0
+                                        Pose = Euclidean3d.Translation(origin)
+                                        Material = mat
+                                        AngularVelocity = V3d.Zero
+                                    }
+
+                                yield (bullet, now)
+                ] 
+
+            { model with spheres = HashMap.union model.spheres (HashMap.ofList spheres)}
+                        
+        | MyRendered -> model
         | UpdatePose -> model
         | SetText t -> 
             { model with text = t }
@@ -59,14 +153,68 @@ module Demo =
     let input (msg : VrMessage) =
         match msg with
         | VrMessage.PressButton(_,1) ->
-            [ToggleVR]
+            [show]
         | VrMessage.UpdatePose(_,_) ->  
             [UpdatePose]
         | _ -> 
             []
 
+    let physxSg (m : AdaptiveModel) =
+
+
+        
+        let boxTrafos = 
+            let actors = ASet.toAVal m.boxes
+            AVal.custom (fun t ->
+                let a = actors.GetValue t
+                m.version.GetValue t
+                a |> HashSet.toArray |> Array.map (fun m -> m.Pose |> Euclidean3d.op_Explicit : Trafo3d)
+        
+            )
+
+        
+        let sphereTrafos = 
+            let actors = AMap.toAVal m.spheres
+            AVal.custom (fun t ->
+                let a = actors.GetValue t
+                m.version.GetValue t
+            
+
+                a |> HashMap.toKeyArray |> Array.map (fun m -> m.Pose |> Euclidean3d.op_Explicit : Trafo3d)
+        
+            )
+
+        Sg.ofList [
+            Sg.box' C4b.White (Box3d.FromCenterAndSize(V3d.Zero, V3d.Half))
+            |> Sg.instanced boxTrafos
+            |> Sg.noEvents
+            |> Sg.shader {
+                do! DefaultSurfaces.trafo
+                do! DefaultSurfaces.simpleLighting
+            }
+            
+            Sg.sphere' 5 C4b.Red 0.05
+            |> Sg.instanced sphereTrafos
+            |> Sg.noEvents
+            |> Sg.shader {
+                do! DefaultSurfaces.trafo
+                do! DefaultSurfaces.simpleLighting
+            }
+
+            Sg.quad
+            |> Sg.transform (Trafo3d.Scale(10.0, 10.0, 1.0))
+            |> Sg.diffuseTexture DefaultTextures.checkerboard
+            |> Sg.shader {
+                do! DefaultSurfaces.trafo
+                do! DefaultSurfaces.diffuseTexture
+                do! DefaultSurfaces.simpleLighting
+            }
+
+        ]
+
+
     let ui (info : VrSystemInfo) (m : AdaptiveModel) =
-        let text = m.vr |> AVal.map (function true -> "Stop VR" | false -> "Start VR")
+        let t = m.vr |> AVal.map (function true -> "Stop VR" | false -> "Start VR")
 
 
         let hmd =
@@ -96,26 +244,30 @@ module Demo =
             | _ ->
                 Sg.empty
 
+        let physxScene = physxSg m
 
         let stuff =
-            Sg.ofList [hmdSg; chap]
+            Sg.ofList [hmdSg; chap; physxScene]
             |> Sg.shader {
                 do! DefaultSurfaces.trafo
                 do! DefaultSurfaces.vertexColor
             }
 
         div [ style "width: 100%; height: 100%" ] [
-            show [ style "width: 100%; height: 100%" ] (
+            show m [ style "width: 100%; height: 100%"; 
+                     attribute "data-renderalways" "true" 
+                   ] (
                 Sg.textWithConfig TextConfig.Default m.text
                 |> Sg.noEvents
                 |> Sg.andAlso stuff
-            )
+            ) |> UI.map CameraMessage
             textarea [ style "position: fixed; top: 5px; left: 5px"; onChange SetText ] m.text
-            button [ style "position: fixed; bottom: 5px; right: 5px"; onClick (fun () -> ToggleVR) ] text
-
+            button [ style "position: fixed; bottom: 5px; right: 5px"; onClick (fun () -> ToggleVR) ] t
+            button [ style "position: fixed; bottom: 20px; right: 5px"; onClick (fun () -> Shoot) ] [text "shoot"]
 
         ]
 
+   
     let vr (info : VrSystemInfo) (m : AdaptiveModel) =
     
         let deviceSgs = 
@@ -139,7 +291,7 @@ module Demo =
                 do! DefaultSurfaces.simpleLighting
             }
 
-        let physxScene = Sg.empty //...
+        let physxScene = physxSg m
 
         Sg.textWithConfig TextConfig.Default m.text
         |> Sg.noEvents
@@ -159,7 +311,7 @@ module Demo =
     let app =
         {
             unpersist = Unpersist.instance
-            initial = initial
+            initial = initial ()
             update = update
             threads = threads
             input = input
