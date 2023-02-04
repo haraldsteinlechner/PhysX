@@ -247,7 +247,11 @@ type PhysXScene(gravity : V3d) =
         )
 
     member x.ReadParticleProperties() =
+        positionsBuffer.SetValue(V4f(42.0f, 43.0f, 44.0f, 45.0f), 0)
+        velsBuffer.SetValue(V4f(22.0f, 43.0f, 44.0f, 45.0f), 0)
+        phasesBuffer.SetValue(uint32(48), 1)
         PhysX.pxGetParticleProperties(pbdHandle, positionsBuffer, velsBuffer, phasesBuffer)
+        printfn "%A" (Array.truncate 15 positionsBuffer)
 
     member x.Dispose() =
         lock actors (fun () ->

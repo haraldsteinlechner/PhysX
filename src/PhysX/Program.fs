@@ -217,10 +217,13 @@ let main args =
         )
 
     let particleTrafos = 
-        scene.ReadParticleProperties()
         AVal.custom (fun t ->
             let sim = sim.GetValue t 
-            scene.particlePositions |> Array.map (fun m -> m.XYZ |> Shift3f |> Trafo3f |> Trafo3d)
+            scene.ReadParticleProperties()
+            printfn "%A" (Array.truncate 15 scene.particlePositions)
+            printfn "%A" (Array.truncate 15 scene.particleVels)
+            printfn "%A" (Array.truncate 15 scene.particlePhases)
+            scene.particlePositions |> Array.map (fun m -> Trafo3d.Translation(V3d(m.XYZ)))
         )
 
     win.Scene <-

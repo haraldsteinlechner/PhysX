@@ -295,14 +295,17 @@ DllExport(PxParticleBuffer*) pxCreateParticleBuffer(PxPbdHandle* handle) {
         phases[i] = handle->Pbd->createPhase(mat, PxParticlePhaseFlags(PxParticlePhaseFlag::eParticlePhaseFluid | PxParticlePhaseFlag::eParticlePhaseSelfCollide));
     }
 
+    PxReal centerX = 0.0f;
+    PxReal centerY = 1.0f;
+    PxReal centerZ = 0.0f;
     PxU32 numX = 50;
     PxU32 numY = 50;
     PxU32 numZ = 50;
-    PxReal x = 0.0f;
-    PxReal y = 0.0f;
-    PxReal z = 0.0f;
+    PxReal x = centerX;
+    PxReal y = centerY;
+    PxReal z = centerZ;
     PxReal particleMass = 0.001f;
-    PxReal particleSpacing = 0.01f;
+    PxReal particleSpacing = 0.1f;
     for (PxU32 i = 0; i < numX; ++i)
     {
         for (PxU32 j = 0; j < numY; ++j)
@@ -318,10 +321,10 @@ DllExport(PxParticleBuffer*) pxCreateParticleBuffer(PxPbdHandle* handle) {
 
                 z += particleSpacing;
             }
-            z = 0.0f;
+            z = centerZ;
             y += particleSpacing;
         }
-        y = 0.0f;
+        y = centerY;
         x += particleSpacing;
     }
 
@@ -335,6 +338,7 @@ DllExport(PxParticleBuffer*) pxCreateParticleBuffer(PxPbdHandle* handle) {
 
     auto particleBuffer = physx::ExtGpu::PxCreateAndPopulateParticleBuffer(bufferDesc, handle->CudaManager);
     handle->Pbd->addParticleBuffer(particleBuffer);
+    handle->ParticleBuffer = particleBuffer;
 
     handle->CudaManager->freePinnedHostBuffer(positionInvMass);
     handle->CudaManager->freePinnedHostBuffer(velocity);
@@ -342,7 +346,7 @@ DllExport(PxParticleBuffer*) pxCreateParticleBuffer(PxPbdHandle* handle) {
     return particleBuffer;
 }
 
-DllExport(void) pxGetParticleProperties(PxPbdHandle* handle, PxVec4* positionsHost, PxVec4* velsHost, PxU32* phasesHost){
+DllExport(void) pxGetParticleProperties(PxPbdHandle* handle, V4f* positionsHost, V4f* velsHost, PxU32* phasesHost){
 
     PxVec4* positions = handle->ParticleBuffer->getPositionInvMasses();
     PxVec4* vels = handle->ParticleBuffer->getVelocities();
@@ -357,14 +361,45 @@ DllExport(void) pxGetParticleProperties(PxPbdHandle* handle, PxVec4* positionsHo
     cudaContexManager->acquireContext();
 
     PxCudaContext* cudaContext = cudaContexManager->getCudaContext();
-    //cudaContext->memcpyDtoH(gParticleInfo.posInvMass->begin(), CUdeviceptr(positions), sizeof(PxVec4) * numParticles);
-    //cudaContext->memcpyDtoH(gParticleInfo.velocity->begin(), CUdeviceptr(vels), sizeof(PxVec4) * numParticles);
-    //cudaContext->memcpyDtoH(gParticleInfo.phase->begin(), CUdeviceptr(phases), sizeof(PxU32) * numParticles);
-    cudaContext->memcpyDtoH(positionsHost, CUdeviceptr(positions), sizeof(PxVec4) * numParticles);
-    cudaContext->memcpyDtoH(velsHost, CUdeviceptr(vels), sizeof(PxVec4) * numParticles);
-    cudaContext->memcpyDtoH(phasesHost, CUdeviceptr(phases), sizeof(PxU32) * numParticles);
+    cudaContext->memcpyDtoH(gParticleInfo.posInvMass->begin(), CUdeviceptr(positions), sizeof(PxVec4) * numParticles);
+    cudaContext->memcpyDtoH(gParticleInfo.velocity->begin(), CUdeviceptr(vels), sizeof(PxVec4) * numParticles);
+    cudaContext->memcpyDtoH(gParticleInfo.phase->begin(), CUdeviceptr(phases), sizeof(PxU32) * numParticles);
+    //cudaContext->memcpyDtoH(positionsHost, CUdeviceptr(positions), sizeof(PxVec4) * numParticles);
+    //cudaContext->memcpyDtoH(velsHost, CUdeviceptr(vels), sizeof(PxVec4) * numParticles);
+    //cudaContext->memcpyDtoH(phasesHost, CUdeviceptr(phases), sizeof(PxU32) * numParticles);
     cudaContexManager->releaseContext();
-    //return &gParticleInfo;
+
+    int i = 0;
+    for (auto it = gParticleInfo.posInvMass->begin(); it != gParticleInfo.posInvMass->end(); ++it)
+    {   
+        positionsHost[i].X = it->x;
+        positionsHost[i].Y = it->y;
+        positionsHost[i].Z = it->z;
+        positionsHost[i].W = it->w;
+        ++i;
+    }
+    i = 0;
+    for (auto it = gParticleInfo.velocity->begin(); it != gParticleInfo.velocity->end(); ++it)
+    {
+        velsHost[i].X = it->x;
+        velsHost[i].Y = it->y;
+        velsHost[i].Z = it->z;
+        velsHost[i].W = it->w;
+        ++i;
+    }
+    i = 0;
+    for (auto it = gParticleInfo.phase->begin(); it != gParticleInfo.phase->end(); ++it)
+    {
+        phasesHost[i] = *it;
+        ++i;
+    }
+
+    positionsHost[0].X = 100000.1f; 
+    positionsHost[0].Y = 0.2f;
+    positionsHost[1].Z = 0.3f;
+    positionsHost[1].W = 999999.4f;
+    velsHost[0].X = 0.6f;
+    phasesHost[0] = PxU32(42);
 }
  
 //DllExport(void) pxSetParticleProperties(PxPbdHandle* handle, int maxParticles, 

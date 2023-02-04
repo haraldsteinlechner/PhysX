@@ -76,8 +76,6 @@ typedef struct {
     physx::PxCudaContextManager* CudaManager;
     physx::PxPBDParticleSystem* Pbd;
     physx::PxParticleBuffer* ParticleBuffer;
-    //physx::PxU32 maxParticles;
-    //PxParticleInfo ParticleInfo;
 } PxPbdHandle;
 
 typedef struct {
