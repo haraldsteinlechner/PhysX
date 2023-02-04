@@ -213,12 +213,16 @@ let main args =
         AVal.custom (fun t ->
             let sim = sim.GetValue t 
             let a = actors.GetValue t
-
-            
-
             a |> HashMap.toKeyArray |> Array.map (fun m -> m.Pose |> Euclidean3d.op_Explicit : Trafo3d)
-        
         )
+
+    let particleTrafos = 
+        scene.ReadParticleProperties()
+        AVal.custom (fun t ->
+            let sim = sim.GetValue t 
+            scene.particlePositions |> Array.map (fun m -> m.XYZ |> Shift3f |> Trafo3f |> Trafo3d)
+        )
+
     win.Scene <-
         Sg.ofList [
             Sg.box' C4b.White (Box3d.FromCenterAndSize(V3d.Zero, V3d.Half))
@@ -243,7 +247,13 @@ let main args =
                 do! DefaultSurfaces.diffuseTexture
                 do! DefaultSurfaces.simpleLighting
             }
-
+            
+            Sg.sphere' 5 C4b.Blue 0.01
+            |> Sg.instanced particleTrafos
+            |> Sg.shader {
+                do! DefaultSurfaces.trafo
+                do! DefaultSurfaces.simpleLighting
+            }
         ]
         |> Sg.trafo turn
 

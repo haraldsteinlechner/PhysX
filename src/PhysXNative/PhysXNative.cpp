@@ -15,16 +15,22 @@
 #include <foundation/PxMat33.h> 
 #include <extensions/PxSimpleFactory.h>
 #include <extensions/PxTriangleMeshExt.h>
+#include <extensions/PxParticleExt.h>
+#include <cudamanager/PxCudaContext.h>
+#include <cudamanager/PxCudaContextManager.h>
 
 using namespace physx;
+using namespace ExtGpu;
 
 static PxDefaultErrorCallback gDefaultErrorCallback;
 static PxDefaultAllocator gDefaultAllocatorCallback;
 static PxSimulationFilterShader gDefaultFilterShader = PxDefaultSimulationFilterShader;
+static PxParticleInfo gParticleInfo = PxParticleInfo();
+static physx::PxU32 gMaxParticles = 0;
 
 DllExport(PxHandle*) pxInit() {
     auto thing = PxCreateFoundation(PX_PHYSICS_VERSION, gDefaultAllocatorCallback, gDefaultErrorCallback);
-    std::cout << "my stuff 0";
+    std::cout << "my stuff 1";
     if(!thing) return nullptr;
 
     auto physics = PxCreatePhysics(PX_PHYSICS_VERSION, *thing, PxTolerancesScale());
@@ -57,7 +63,7 @@ DllExport(void) pxDestroyMaterial(PxMaterial* mat) {
 
 DllExport(PxGeometry*) pxCreateBoxGeometry(PxHandle* handle, V3d size) {
     
-    return new PxBoxGeometry((float)size.X/2.0, (float)size.Y/2.0, (float)size.Z/2.0);
+    return new PxBoxGeometry((float)size.X/2.0f, (float)size.Y/2.0f, (float)size.Z/2.0f);
 }
 
 DllExport(PxGeometry*) pxCreateSphereGeometry(PxHandle* handle, float radius) {
@@ -179,6 +185,7 @@ DllExport(void) pxSimulate(PxSceneHandle* scene, float dt) {
     if(dt > 0.0) {
         scene->Scene->simulate(dt);
         scene->Scene->fetchResults(true);
+        scene->Scene->fetchResultsParticleSystem();
     }
 }
 
@@ -193,15 +200,13 @@ DllExport(void) pxGetPose(PxRigidActor* actor, Euclidean3d& trafo) {
     trafo.Rot.W = pose.q.w;
 }
 
-
 DllExport(PxSceneHandle*) pxCreateScene(PxHandle* handle, V3d gravity) {
     PxSceneDesc sceneDesc(handle->Physics->getTolerancesScale());
     sceneDesc.gravity = PxVec3((float)gravity.X, (float)gravity.Y, (float)gravity.Z);
 
     PxCudaContextManagerDesc cudaContextManagerDesc;
-    //auto gCudaContextManager = PxCreateCudaContextManager(*gFoundation, cudaContextManagerDesc, PxGetProfilerCallback());
-    auto gCudaContextManager = PxCreateCudaContextManager(*handle->Foundation, cudaContextManagerDesc, PxGetProfilerCallback());
-    sceneDesc.cudaContextManager = gCudaContextManager;
+    auto cudaContextManager = PxCreateCudaContextManager(*handle->Foundation, cudaContextManagerDesc, PxGetProfilerCallback());
+    sceneDesc.cudaContextManager = cudaContextManager;
 
     sceneDesc.flags |= PxSceneFlag::eENABLE_GPU_DYNAMICS;
     sceneDesc.broadPhaseType = PxBroadPhaseType::eGPU;
@@ -224,13 +229,169 @@ DllExport(PxSceneHandle*) pxCreateScene(PxHandle* handle, V3d gravity) {
     sceneHandle->Physics = handle->Physics;
     sceneHandle->Scene = scene;
     sceneHandle->Cooking = handle->Cooking;
+    sceneHandle->CudaManager = cudaContextManager;
     return sceneHandle;
 }
 
-DllExport(void) pxDestroyScene(PxSceneHandle* handle) {
+DllExport(void) pxDestroyScene(PxPbdHandle* handle) {
+    //delete handle->ParticleInfo.posInvMass;
+    //delete handle->ParticleInfo.velocity;
+    //delete handle->ParticleInfo.phase;
     handle->Scene->release();
     delete handle;
 }
+
+DllExport(PxPbdHandle*) pxCreatePBD(PxSceneHandle* sceneHandle, PxU32 maxParticles) {
+    PxPBDParticleSystem* particleSystem = sceneHandle->Physics->createPBDParticleSystem(*sceneHandle->CudaManager, 96);
+
+    const PxReal particleSpacing = 0.2f;
+    const PxReal fluidDensity = 1000.f;
+    const PxReal restOffset = 0.5f * particleSpacing / 0.6f;
+    const PxReal solidRestOffset = restOffset;
+    const PxReal fluidRestOffset = restOffset * 0.6f;
+    const PxReal particleMass = fluidDensity * 1.333f * 3.14159f * particleSpacing * particleSpacing * particleSpacing;
+    particleSystem->setRestOffset(restOffset);
+    particleSystem->setContactOffset(restOffset + 0.01f);
+    particleSystem->setParticleContactOffset(fluidRestOffset / 0.6f);
+    particleSystem->setSolidRestOffset(solidRestOffset);
+    particleSystem->setFluidRestOffset(fluidRestOffset);
+    particleSystem->enableCCD(false);
+    particleSystem->setMaxVelocity(solidRestOffset * 100.f);
+
+    auto pbdHandle = new PxPbdHandle();
+    pbdHandle->Foundation = sceneHandle->Foundation;
+    pbdHandle->Physics = sceneHandle->Physics;
+    pbdHandle->Scene = sceneHandle->Scene;
+    pbdHandle->Cooking = sceneHandle->Cooking;
+    pbdHandle->CudaManager = sceneHandle->CudaManager;
+    pbdHandle->Pbd = particleSystem;
+    gMaxParticles = maxParticles;
+    gParticleInfo.posInvMass = new PxArray<PxVec4>(maxParticles);
+    gParticleInfo.velocity = new PxArray<PxVec4>(maxParticles);
+    gParticleInfo.phase = new PxArray<PxU32>(maxParticles);
+    return pbdHandle;
+}
+
+DllExport(PxParticleBuffer*) pxCreateParticleBuffer(PxPbdHandle* handle) {
+
+    PxPBDMaterial* defaultMat = handle->Physics->createPBDMaterial(0.05f, 0.05f, 0.f, 0.001f, 0.5f, 0.005f, 0.01f, 0.f, 0.f);
+    defaultMat->setViscosity(0.001f);
+    defaultMat->setSurfaceTension(0.00704f);
+    defaultMat->setCohesion(0.0704f);
+    defaultMat->setVorticityConfinement(10.f);
+
+    const PxU32 particlePhase = handle->Pbd->createPhase(defaultMat, PxParticlePhaseFlags(PxParticlePhaseFlag::eParticlePhaseFluid | PxParticlePhaseFlag::eParticlePhaseSelfCollide));
+
+    PxU32* phase = handle->CudaManager->allocPinnedHostBuffer<PxU32>(gMaxParticles);
+    PxVec4* positionInvMass = handle->CudaManager->allocPinnedHostBuffer<PxVec4>(gMaxParticles);
+    PxVec4* velocity = handle->CudaManager->allocPinnedHostBuffer<PxVec4>(gMaxParticles);
+
+    // We are applying different material parameters for each section
+    const PxU32 maxMaterials = 3;
+    PxU32 phases[maxMaterials];
+    for (PxU32 i = 0; i < maxMaterials; ++i)
+    {
+        PxPBDMaterial* mat = handle->Physics->createPBDMaterial(0.05f, i / (maxMaterials - 1.0f), 0.f, 10.002f * (i + 1), 0.5f, 0.005f * i, 0.01f, 0.f, 0.f);
+        phases[i] = handle->Pbd->createPhase(mat, PxParticlePhaseFlags(PxParticlePhaseFlag::eParticlePhaseFluid | PxParticlePhaseFlag::eParticlePhaseSelfCollide));
+    }
+
+    PxU32 numX = 50;
+    PxU32 numY = 50;
+    PxU32 numZ = 50;
+    PxReal x = 0.0f;
+    PxReal y = 0.0f;
+    PxReal z = 0.0f;
+    PxReal particleMass = 0.001f;
+    PxReal particleSpacing = 0.01f;
+    for (PxU32 i = 0; i < numX; ++i)
+    {
+        for (PxU32 j = 0; j < numY; ++j)
+        {
+            for (PxU32 k = 0; k < numZ; ++k)
+            {
+                const PxU32 index = i * (numY * numZ) + j * numZ + k;
+                const PxU16 matIndex = (PxU16)(i * maxMaterials / numX);
+                const PxVec4 pos(x, y, z, 1.0f / particleMass);
+                phase[index] = phases[matIndex];
+                positionInvMass[index] = pos;
+                velocity[index] = PxVec4(0.0f);
+
+                z += particleSpacing;
+            }
+            z = 0.0f;
+            y += particleSpacing;
+        }
+        y = 0.0f;
+        x += particleSpacing;
+    }
+
+    ExtGpu::PxParticleBufferDesc bufferDesc;
+    bufferDesc.maxParticles = gMaxParticles;
+    bufferDesc.numActiveParticles = gMaxParticles;
+
+    bufferDesc.positions = positionInvMass;
+    bufferDesc.velocities = velocity;
+    bufferDesc.phases = phase;
+
+    auto particleBuffer = physx::ExtGpu::PxCreateAndPopulateParticleBuffer(bufferDesc, handle->CudaManager);
+    handle->Pbd->addParticleBuffer(particleBuffer);
+
+    handle->CudaManager->freePinnedHostBuffer(positionInvMass);
+    handle->CudaManager->freePinnedHostBuffer(velocity);
+    handle->CudaManager->freePinnedHostBuffer(phase);
+    return particleBuffer;
+}
+
+DllExport(void) pxGetParticleProperties(PxPbdHandle* handle, PxVec4* positionsHost, PxVec4* velsHost, PxU32* phasesHost){
+
+    PxVec4* positions = handle->ParticleBuffer->getPositionInvMasses();
+    PxVec4* vels = handle->ParticleBuffer->getVelocities();
+    PxU32* phases = handle->ParticleBuffer->getPhases();
+
+    const PxU32 numParticles = handle->ParticleBuffer->getNbActiveParticles();
+
+    PxScene* scene;
+    PxGetPhysics().getScenes(&scene, 1);
+    PxCudaContextManager* cudaContexManager = scene->getCudaContextManager();
+    
+    cudaContexManager->acquireContext();
+
+    PxCudaContext* cudaContext = cudaContexManager->getCudaContext();
+    //cudaContext->memcpyDtoH(gParticleInfo.posInvMass->begin(), CUdeviceptr(positions), sizeof(PxVec4) * numParticles);
+    //cudaContext->memcpyDtoH(gParticleInfo.velocity->begin(), CUdeviceptr(vels), sizeof(PxVec4) * numParticles);
+    //cudaContext->memcpyDtoH(gParticleInfo.phase->begin(), CUdeviceptr(phases), sizeof(PxU32) * numParticles);
+    cudaContext->memcpyDtoH(positionsHost, CUdeviceptr(positions), sizeof(PxVec4) * numParticles);
+    cudaContext->memcpyDtoH(velsHost, CUdeviceptr(vels), sizeof(PxVec4) * numParticles);
+    cudaContext->memcpyDtoH(phasesHost, CUdeviceptr(phases), sizeof(PxU32) * numParticles);
+    cudaContexManager->releaseContext();
+    //return &gParticleInfo;
+}
+ 
+//DllExport(void) pxSetParticleProperties(PxPbdHandle* handle, int maxParticles, 
+//    PxU32* phase, PxVec4* positionInvMass, PxVec4* velocity) {
+//    auto cudaContextManager = handle->CudaManager;
+//    //PxVec4* bufferPos = particleBuffer->getPositionInvMasses();
+//
+//    PxU32* phaseMem = cudaContextManager->allocPinnedHostBuffer<PxU32>(maxParticles);
+//    PxVec4* positionInvMassMem = cudaContextManager->allocPinnedHostBuffer<PxVec4>(maxParticles);
+//    PxVec4* velocityMem = cudaContextManager->allocPinnedHostBuffer<PxVec4>(maxParticles);
+//
+//    for (PxU32 i = 0; i < maxParticles; ++i)
+//    {
+//        phaseMem[i] = phase[i];
+//        positionInvMassMem[i] = positionInvMass[i];
+//        velocityMem[i] = velocity[i];
+//    }
+//
+//    auto cudaContext = handle->CudaManager->context();
+//    cudaContext->memcpyHtoDAsync(bufferPos, positionsHost, 1000 * sizeof(PxVec4), 0);
+//    particleBuffer->raiseFlags(PxParticleBufferFlag::eUPDATE_POSITION);
+//    particleBuffer->setNbActiveParticles(1000);
+//
+//    gParticleBuffer = ExtGpu::PxCreateAndPopulateParticleAndDiffuseBuffer(bufferDesc, cudaContextManager);
+//    gParticleSystem->addParticleBuffer(gParticleBuffer);
+//}
+
 
 int main(int argc, char** argv) {
     return 0;

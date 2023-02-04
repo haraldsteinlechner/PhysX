@@ -14,6 +14,14 @@ type PhysXHandle =
 [<Struct; StructLayout(LayoutKind.Sequential)>]
 type PhysXSceneHandle = 
     val mutable public Handle : nativeint
+    
+[<Struct; StructLayout(LayoutKind.Sequential)>]
+type PhysXPbdHandle = 
+    val mutable public Handle : nativeint
+
+[<Struct; StructLayout(LayoutKind.Sequential)>]
+type PhysXPbdParticleBuffer = 
+    val mutable public Handle : nativeint
 
 [<Struct; StructLayout(LayoutKind.Sequential)>]
 type PhysXMaterialHandle = 
@@ -22,10 +30,16 @@ type PhysXMaterialHandle =
 [<Struct; StructLayout(LayoutKind.Sequential)>]
 type PhysxActorHandle = 
     val mutable public Handle : nativeint
-
+    
 [<Struct; StructLayout(LayoutKind.Sequential)>]
 type PhysXGeometryHandle = 
     val mutable public Handle : nativeint
+
+//[<Struct; StructLayout(LayoutKind.Sequential)>]
+//type PhysXParticleInfo = 
+//    val mutable public posInvMass : V4f[]
+//    val mutable public valocity : V4f[]
+//    val mutable public phases : uint32[]
 
 module PhysX =
     [<DllImport("PhysXNative")>]
@@ -99,7 +113,17 @@ module PhysX =
     
     [<DllImport("PhysXNative")>]
     extern V3d pxGetAngularVelocity(PhysxActorHandle actor)
-
+    
+    [<DllImport("PhysXNative")>]
+    extern PhysXPbdHandle pxCreatePBD(PhysXSceneHandle sceneHandle, uint32 maxParticles)
+    
+    [<DllImport("PhysXNative")>]
+    extern PhysXPbdParticleBuffer pxCreateParticleBuffer(PhysXPbdHandle handle)
+    
+    [<DllImport("PhysXNative")>]
+    extern void pxGetParticleProperties(
+        PhysXPbdHandle handle, V4f[] positionsHost, V4f[] velsHost, uint32[] phasesHost)
+    
 type Material =
     {
         StaticFriction : float
@@ -141,12 +165,23 @@ type PhysXScene(gravity : V3d) =
     static let physxInstance = lazy (PhysX.pxInit())
 
     let physx = physxInstance.Value
-    let handle = PhysX.pxCreateScene(physx, gravity)
+    let sceneHandle = PhysX.pxCreateScene(physx, gravity)
+    let maxParticles = 10000u
+    let pbdHandle = PhysX.pxCreatePBD(sceneHandle, maxParticles)
+    let fluidParticles = PhysX.pxCreateParticleBuffer(pbdHandle)
     let matCache = Dict<Material, PhysXMaterialHandle>()
     let actors = System.Collections.Generic.HashSet<PhysXActor>()
+    
+    let positionsBuffer : V4f array = maxParticles |> int |> Array.zeroCreate
+    let velsBuffer : V4f array = maxParticles |> int |> Array.zeroCreate
+    let phasesBuffer : uint32 array = maxParticles |> int |> Array.zeroCreate
 
-    member x.Handle = handle
+    member x.Handle = sceneHandle
+    member x.PbdHandle = pbdHandle
     member internal x.ActorSet = actors
+    member x.particlePositions = positionsBuffer
+    member x.particleVels = velsBuffer
+    member x.particlePhases = phasesBuffer
 
     member x.Actors = actors :> seq<_>
 
@@ -166,9 +201,9 @@ type PhysXScene(gravity : V3d) =
                 | _ -> desc.Pose
 
             let actor =
-                PhysX.pxCreateStatic(handle, hMat, trafo, hGeom)
+                PhysX.pxCreateStatic(sceneHandle, hMat, trafo, hGeom)
 
-            PhysX.pxAddActor(handle, actor)
+            PhysX.pxAddActor(sceneHandle, actor)
             let res = new PhysXActor(x, false, desc.Geometry, actor, hGeom)
             actors.Add res |> ignore
             res
@@ -191,9 +226,9 @@ type PhysXScene(gravity : V3d) =
                 | _ -> desc.Pose
 
             let actor =
-                PhysX.pxCreateDynamic(handle, hMat, float32 desc.Density, trafo, hGeom)
+                PhysX.pxCreateDynamic(sceneHandle, hMat, float32 desc.Density, trafo, hGeom)
 
-            PhysX.pxAddActor(handle, actor)
+            PhysX.pxAddActor(sceneHandle, actor)
 
             if desc.Velocity <> V3d.Zero then
                 PhysX.pxSetLinearVelocity(actor, desc.Velocity)
@@ -208,12 +243,15 @@ type PhysXScene(gravity : V3d) =
 
     member x.Simulate(dt : float) =
         lock actors (fun () ->
-            PhysX.pxSimulate(handle, float32 dt)
+            PhysX.pxSimulate(sceneHandle, float32 dt)
         )
+
+    member x.ReadParticleProperties() =
+        PhysX.pxGetParticleProperties(pbdHandle, positionsBuffer, velsBuffer, phasesBuffer)
 
     member x.Dispose() =
         lock actors (fun () ->
-            PhysX.pxDestroyScene(handle)
+            PhysX.pxDestroyScene(sceneHandle)
         )
 
     interface System.IDisposable with

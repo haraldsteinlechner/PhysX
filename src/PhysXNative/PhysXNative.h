@@ -17,6 +17,13 @@ typedef struct {
 } V3f;
 
 typedef struct {
+    float X;
+    float Y;
+    float Z;
+    float W;
+} V4f;
+
+typedef struct {
     double X;
     double Y;
     double Z;
@@ -52,8 +59,26 @@ typedef struct {
     physx::PxPhysics* Physics;
     physx::PxCooking* Cooking;
     physx::PxScene* Scene;
+    physx::PxCudaContextManager* CudaManager;
 } PxSceneHandle;
 
+typedef struct {
+    physx::PxArray<physx::PxVec4>* posInvMass;
+    physx::PxArray<physx::PxVec4>* velocity;
+    physx::PxArray<physx::PxU32>* phase;
+} PxParticleInfo;
+
+typedef struct {
+    physx::PxFoundation* Foundation;
+    physx::PxPhysics* Physics;
+    physx::PxCooking* Cooking;
+    physx::PxScene* Scene;
+    physx::PxCudaContextManager* CudaManager;
+    physx::PxPBDParticleSystem* Pbd;
+    physx::PxParticleBuffer* ParticleBuffer;
+    //physx::PxU32 maxParticles;
+    //PxParticleInfo ParticleInfo;
+} PxPbdHandle;
 
 typedef struct {
     physx::PxMaterial* Material;
@@ -67,5 +92,5 @@ DllExport(PxHandle*) pxInit();
 DllExport(void) pxDestroy(PxHandle* handle);
 
 DllExport(PxSceneHandle*) pxCreateScene(PxHandle* handle, V3d gravity);
-DllExport(void) pxDestroyScene(PxSceneHandle* handle);
+DllExport(void) pxDestroyScene(PxPbdHandle* handle);
 DllExport(void) pxSimulate(PxSceneHandle* scene, float dt);
