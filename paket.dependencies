@@ -8,3 +8,10 @@ nuget Aardvark.Build ~> 1.0.18
 
 nuget Aardvark.SceneGraph ~> 5.3.6
 nuget Aardvark.Application.Utilities ~> 5.3.6
+
+nuget Aardvark.VR
+nuget Aardvark.UI.Primitives
+
+nuget Adaptify.MSBuild
+
+nuget Aardium

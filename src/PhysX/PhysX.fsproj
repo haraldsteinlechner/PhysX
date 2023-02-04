@@ -11,6 +11,8 @@
     <DefineConstants>TRACE;DEBUG;NET;NET7_0;NETCOREAPP</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="PhysX.fs" />
+    <None Include="paket.references" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
