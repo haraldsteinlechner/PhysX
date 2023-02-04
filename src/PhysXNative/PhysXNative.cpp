@@ -24,6 +24,7 @@ static PxSimulationFilterShader gDefaultFilterShader = PxDefaultSimulationFilter
 
 DllExport(PxHandle*) pxInit() {
     auto thing = PxCreateFoundation(PX_PHYSICS_VERSION, gDefaultAllocatorCallback, gDefaultErrorCallback);
+    std::cout << "my stuff 0";
     if(!thing) return nullptr;
 
     auto physics = PxCreatePhysics(PX_PHYSICS_VERSION, *thing, PxTolerancesScale());
@@ -47,9 +48,6 @@ DllExport(void) pxDestroy(PxHandle* handle) {
 
 DllExport(PxMaterial*) pxCreateMaterial(PxHandle* handle, float staticFriction, float dynamicFriction, float restitution) {
     auto a = handle->Physics->createMaterial(staticFriction, dynamicFriction, restitution);
-    a->acquireReference();
-    a->acquireReference();
-    a->acquireReference();
     return a;
 }
 
@@ -199,7 +197,15 @@ DllExport(void) pxGetPose(PxRigidActor* actor, Euclidean3d& trafo) {
 DllExport(PxSceneHandle*) pxCreateScene(PxHandle* handle, V3d gravity) {
     PxSceneDesc sceneDesc(handle->Physics->getTolerancesScale());
     sceneDesc.gravity = PxVec3((float)gravity.X, (float)gravity.Y, (float)gravity.Z);
-    
+
+    PxCudaContextManagerDesc cudaContextManagerDesc;
+    //auto gCudaContextManager = PxCreateCudaContextManager(*gFoundation, cudaContextManagerDesc, PxGetProfilerCallback());
+    auto gCudaContextManager = PxCreateCudaContextManager(*handle->Foundation, cudaContextManagerDesc, PxGetProfilerCallback());
+    sceneDesc.cudaContextManager = gCudaContextManager;
+
+    sceneDesc.flags |= PxSceneFlag::eENABLE_GPU_DYNAMICS;
+    sceneDesc.broadPhaseType = PxBroadPhaseType::eGPU;
+
     if(!sceneDesc.cpuDispatcher) {
         PxDefaultCpuDispatcher* mCpuDispatcher = PxDefaultCpuDispatcherCreate(1);
         if(!mCpuDispatcher) return nullptr;

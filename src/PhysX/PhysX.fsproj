@@ -5,6 +5,10 @@
     <TargetFramework>net6.0</TargetFramework>
     <OutputPath>..\..\bin\$(Configuration)\</OutputPath>
     <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    <ProjectGuid>{682b5e55-aeae-42a5-880e-d12128d98539}</ProjectGuid>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DefineConstants>TRACE;DEBUG;NET;NET7_0;NETCOREAPP</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.fs" />
