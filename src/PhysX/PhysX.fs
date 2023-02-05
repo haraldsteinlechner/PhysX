@@ -115,7 +115,9 @@ module PhysX =
     extern V3d pxGetAngularVelocity(PhysxActorHandle actor)
     
     [<DllImport("PhysXNative")>]
-    extern PhysXPbdHandle pxCreatePBD(PhysXSceneHandle sceneHandle, uint32 maxParticles)
+    extern PhysXPbdHandle pxCreatePBD(PhysXSceneHandle sceneHandle, uint32 maxParticles, 
+        single centerX, single centerY, single centerZ, uint32 numParticlesDim,
+        single particleSpacing, single fluidDensity)
     
     [<DllImport("PhysXNative")>]
     extern PhysXPbdParticleBuffer pxCreateParticleBuffer(PhysXPbdHandle handle, single centerX, single centerY, single centerZ, uint32 numParticlesDim)
@@ -166,16 +168,16 @@ type PhysXScene(gravity : V3d) =
 
     let physx = physxInstance.Value
     let sceneHandle = PhysX.pxCreateScene(physx, gravity)
-    let maxParticles = 10000u
-    let pbdHandle = PhysX.pxCreatePBD(sceneHandle, maxParticles)
-    let fluidParticles = PhysX.pxCreateParticleBuffer(pbdHandle, 0.0f, 0.0f, 1.0f, 10u)
+    let numParticlesDim = 10u
+    let maxParticles = uint32(ceil(float(numParticlesDim) ** 3.0))
+    let pbdHandle = PhysX.pxCreatePBD(sceneHandle, maxParticles, 0.0f, 0.0f, 1.0f, numParticlesDim, 0.1f, 1000.0f)
     let matCache = Dict<Material, PhysXMaterialHandle>()
     let actors = System.Collections.Generic.HashSet<PhysXActor>()
     
     let positionsBuffer : V4f array = maxParticles |> int |> Array.zeroCreate
     let velsBuffer : V4f array = maxParticles |> int |> Array.zeroCreate
     let phasesBuffer : uint32 array = maxParticles |> int |> Array.zeroCreate
-    
+
     member x.Handle = sceneHandle
     member x.PbdHandle = pbdHandle
     member internal x.ActorSet = actors

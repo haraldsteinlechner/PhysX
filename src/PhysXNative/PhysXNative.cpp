@@ -241,15 +241,16 @@ DllExport(void) pxDestroyScene(PxPbdHandle* handle) {
     delete handle;
 }
 
-DllExport(PxPbdHandle*) pxCreatePBD(PxSceneHandle* sceneHandle, PxU32 maxParticles) {
+DllExport(PxPbdHandle*) pxCreatePBD(
+        PxSceneHandle* sceneHandle, PxU32 maxParticles, 
+        float centerX, float centerY, float centerZ, PxU32 numParticlesDim,
+        PxReal particleSpacing = 0.2f, PxReal fluidDensity = 1000.f) {
+
     PxPBDParticleSystem* particleSystem = sceneHandle->Physics->createPBDParticleSystem(*sceneHandle->CudaManager, 96);
 
-    const PxReal particleSpacing = 0.2f;
-    const PxReal fluidDensity = 1000.f;
     const PxReal restOffset = 0.5f * particleSpacing / 0.6f;
     const PxReal solidRestOffset = restOffset;
     const PxReal fluidRestOffset = restOffset * 0.6f;
-    const PxReal particleMass = fluidDensity * 1.333f * 3.14159f * particleSpacing * particleSpacing * particleSpacing;
     particleSystem->setRestOffset(restOffset);
     particleSystem->setContactOffset(restOffset + 0.01f);
     particleSystem->setParticleContactOffset(fluidRestOffset / 0.6f);
@@ -265,34 +266,26 @@ DllExport(PxPbdHandle*) pxCreatePBD(PxSceneHandle* sceneHandle, PxU32 maxParticl
     pbdHandle->Cooking = sceneHandle->Cooking;
     pbdHandle->CudaManager = sceneHandle->CudaManager;
     pbdHandle->Pbd = particleSystem;
+
     gMaxParticles = maxParticles;
     gParticleInfo.posInvMass = new PxArray<PxVec4>(maxParticles);
     gParticleInfo.velocity = new PxArray<PxVec4>(maxParticles);
     gParticleInfo.phase = new PxArray<PxU32>(maxParticles);
-    return pbdHandle;
-}
 
-DllExport(PxParticleBuffer*) pxCreateParticleBuffer(PxPbdHandle* handle, float centerX, float centerY, float centerZ, PxU32 numParticlesDim) {
+    pbdHandle->Scene->addActor(*particleSystem);
 
-    //PxPBDMaterial* defaultMat = handle->Physics->createPBDMaterial(0.05f, 0.05f, 0.f, 0.001f, 0.5f, 0.005f, 0.01f, 0.f, 0.f);
-    //defaultMat->setViscosity(0.001f);
-    //defaultMat->setSurfaceTension(0.00704f);
-    //defaultMat->setCohesion(0.0704f);
-    //defaultMat->setVorticityConfinement(10.f);
 
-    //const PxU32 particlePhase = handle->Pbd->createPhase(defaultMat, PxParticlePhaseFlags(PxParticlePhaseFlag::eParticlePhaseFluid | PxParticlePhaseFlag::eParticlePhaseSelfCollide));
-
-    PxU32* phase = handle->CudaManager->allocPinnedHostBuffer<PxU32>(gMaxParticles);
-    PxVec4* positionInvMass = handle->CudaManager->allocPinnedHostBuffer<PxVec4>(gMaxParticles);
-    PxVec4* velocity = handle->CudaManager->allocPinnedHostBuffer<PxVec4>(gMaxParticles);
+    PxU32* phase = sceneHandle->CudaManager->allocPinnedHostBuffer<PxU32>(gMaxParticles);
+    PxVec4* positionInvMass = sceneHandle->CudaManager->allocPinnedHostBuffer<PxVec4>(gMaxParticles);
+    PxVec4* velocity = sceneHandle->CudaManager->allocPinnedHostBuffer<PxVec4>(gMaxParticles);
 
     // We are applying different material parameters for each section
     const PxU32 maxMaterials = 3;
     PxU32 phases[maxMaterials];
     for (PxU32 i = 0; i < maxMaterials; ++i)
     {
-        PxPBDMaterial* mat = handle->Physics->createPBDMaterial(0.05f, i / (maxMaterials - 1.0f), 0.f, 10.002f * (i + 1), 0.5f, 0.005f * i, 0.01f, 0.f, 0.f);
-        phases[i] = handle->Pbd->createPhase(mat, PxParticlePhaseFlags(PxParticlePhaseFlag::eParticlePhaseFluid | PxParticlePhaseFlag::eParticlePhaseSelfCollide));
+        PxPBDMaterial* mat = pbdHandle->Physics->createPBDMaterial(0.05f, i / (maxMaterials - 1.0f), 0.f, 10.002f * (i + 1), 0.5f, 0.005f * i, 0.01f, 0.f, 0.f);
+        phases[i] = pbdHandle->Pbd->createPhase(mat, PxParticlePhaseFlags(PxParticlePhaseFlag::eParticlePhaseFluid | PxParticlePhaseFlag::eParticlePhaseSelfCollide));
     }
 
     PxU32 numX = numParticlesDim;
@@ -301,8 +294,7 @@ DllExport(PxParticleBuffer*) pxCreateParticleBuffer(PxPbdHandle* handle, float c
     PxReal x = centerX;
     PxReal y = centerY;
     PxReal z = centerZ;
-    PxReal particleMass = 0.001f;
-    PxReal particleSpacing = 0.1f;
+    const PxReal particleMass = fluidDensity * 1.333f * 3.14159f * particleSpacing * particleSpacing * particleSpacing;
     for (PxU32 i = 0; i < numX; ++i)
     {
         for (PxU32 j = 0; j < numY; ++j)
@@ -333,14 +325,15 @@ DllExport(PxParticleBuffer*) pxCreateParticleBuffer(PxPbdHandle* handle, float c
     bufferDesc.velocities = velocity;
     bufferDesc.phases = phase;
 
-    auto particleBuffer = physx::ExtGpu::PxCreateAndPopulateParticleBuffer(bufferDesc, handle->CudaManager);
-    handle->Pbd->addParticleBuffer(particleBuffer);
-    handle->ParticleBuffer = particleBuffer;
+    auto particleBuffer = physx::ExtGpu::PxCreateAndPopulateParticleBuffer(bufferDesc, pbdHandle->CudaManager);
+    pbdHandle->Pbd->addParticleBuffer(particleBuffer);
+    pbdHandle->ParticleBuffer = particleBuffer;
 
-    handle->CudaManager->freePinnedHostBuffer(positionInvMass);
-    handle->CudaManager->freePinnedHostBuffer(velocity);
-    handle->CudaManager->freePinnedHostBuffer(phase);
-    return particleBuffer;
+    pbdHandle->CudaManager->freePinnedHostBuffer(positionInvMass);
+    pbdHandle->CudaManager->freePinnedHostBuffer(velocity);
+    pbdHandle->CudaManager->freePinnedHostBuffer(phase);
+
+    return pbdHandle;
 }
 
 DllExport(void) pxGetParticleProperties(PxPbdHandle* handle, V4f* positionsHost, V4f* velsHost, PxU32* phasesHost){
