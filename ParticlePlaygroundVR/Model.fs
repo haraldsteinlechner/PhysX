@@ -21,6 +21,7 @@ type Model =
 
         boxes : HashSet<PhysXActor>
         spheres : HashMap<PhysXActor, float>
+        particlePositions : Trafo3d[]
 
         lastSimulation : Option<DateTime>
 

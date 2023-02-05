@@ -170,7 +170,9 @@ type PhysXScene(gravity : V3d) =
     let sceneHandle = PhysX.pxCreateScene(physx, gravity)
     let numParticlesDim = 10u
     let maxParticles = uint32(ceil(float(numParticlesDim) ** 3.0))
-    let pbdHandle = PhysX.pxCreatePBD(sceneHandle, maxParticles, 0.0f, 0.0f, 1.0f, numParticlesDim, 0.1f, 1000.0f)
+    let particleSpawnSize = 3.0f
+    let particleSpacing = particleSpawnSize / single(numParticlesDim)
+    let pbdHandle = PhysX.pxCreatePBD(sceneHandle, maxParticles, 0.0f, 0.0f, 1.0f, numParticlesDim, particleSpacing, 1000.0f)
     let matCache = Dict<Material, PhysXMaterialHandle>()
     let actors = System.Collections.Generic.HashSet<PhysXActor>()
     

@@ -80,6 +80,7 @@ module Demo =
             lastSimulation = None
             spheres = HashMap.empty
             cameraController = FreeFlyController.initial 
+            particlePositions = [|Trafo3d.Identity|]
             version = 0
         }
         
@@ -95,7 +96,9 @@ module Demo =
                 let dt = (DateTime.Now - l).TotalSeconds
                 if dt < 0.1  then
                     model.scene.Simulate (float dt)
-                    { model with lastSimulation = Some DateTime.Now; version = model.version + 1 }
+                    model.scene.ReadParticleProperties()
+                    let particleTrafos = model.scene.particlePositions |> Array.map (fun m -> Trafo3d.Translation(V3d(m.XYZ)))
+                    { model with lastSimulation = Some DateTime.Now; particlePositions = particleTrafos; version = model.version + 1 }
                 else
                     { model with lastSimulation = Some DateTime.Now; version = model.version + 1 }
 
@@ -161,13 +164,11 @@ module Demo =
 
     let physxSg (m : AdaptiveModel) =
 
-
-        
         let boxTrafos = 
             let actors = ASet.toAVal m.boxes
             AVal.custom (fun t ->
                 let a = actors.GetValue t
-                m.version.GetValue t
+                m.version.GetValue t |> ignore
                 a |> HashSet.toArray |> Array.map (fun m -> m.Pose |> Euclidean3d.op_Explicit : Trafo3d)
         
             )
@@ -177,14 +178,33 @@ module Demo =
             let actors = AMap.toAVal m.spheres
             AVal.custom (fun t ->
                 let a = actors.GetValue t
-                m.version.GetValue t
-            
+                m.version.GetValue t |> ignore
 
                 a |> HashMap.toKeyArray |> Array.map (fun m -> m.Pose |> Euclidean3d.op_Explicit : Trafo3d)
         
             )
+            
+        //let particleTrafos = 
+        //    let particles = ASet.toAVal m.particlePositions
+        //    //let particles = m.particlePositions |> AVal.map (fun theArray -> Array.map (fun (v: V3d) -> Trafo3d.Translation(v.XYZ)))
+        //    AVal.custom (fun t ->
+        //        m.version.GetValue t |> ignore
+        //        particles
+        //        //m.particlePositions |> AVal.map (fun theArray -> Array.map (fun v -> v))
+        //    )
+            
+        //let particleTrafos = 
+        //    m.particlePositions |> AVal.map (fun theArray -> Array.map (fun (v: V3d) -> Trafo3d.Translation(v.XYZ)))
 
         Sg.ofList [
+            //Sg.box C4b.White (Box3d.FromCenterAndSize(V3d.Zero, V3d.Half))
+            //|> Sg.instanced boxTrafos
+            //|> Sg.noEvents
+            //|> Sg.shader {
+            //    do! DefaultSurfaces.trafo
+            //    do! DefaultSurfaces.simpleLighting
+            //}
+
             Sg.box' C4b.White (Box3d.FromCenterAndSize(V3d.Zero, V3d.Half))
             |> Sg.instanced boxTrafos
             |> Sg.noEvents
@@ -209,7 +229,14 @@ module Demo =
                 do! DefaultSurfaces.diffuseTexture
                 do! DefaultSurfaces.simpleLighting
             }
-
+            
+            Sg.sphere' 5 C4b.Blue 0.1
+            |> Sg.instanced m.particlePositions
+            |> Sg.noEvents
+            |> Sg.shader {
+                do! DefaultSurfaces.trafo
+                do! DefaultSurfaces.simpleLighting
+            }
         ]
 
 
