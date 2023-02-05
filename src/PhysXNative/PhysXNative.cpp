@@ -272,15 +272,15 @@ DllExport(PxPbdHandle*) pxCreatePBD(PxSceneHandle* sceneHandle, PxU32 maxParticl
     return pbdHandle;
 }
 
-DllExport(PxParticleBuffer*) pxCreateParticleBuffer(PxPbdHandle* handle) {
+DllExport(PxParticleBuffer*) pxCreateParticleBuffer(PxPbdHandle* handle, float centerX, float centerY, float centerZ, PxU32 numParticlesDim) {
 
-    PxPBDMaterial* defaultMat = handle->Physics->createPBDMaterial(0.05f, 0.05f, 0.f, 0.001f, 0.5f, 0.005f, 0.01f, 0.f, 0.f);
-    defaultMat->setViscosity(0.001f);
-    defaultMat->setSurfaceTension(0.00704f);
-    defaultMat->setCohesion(0.0704f);
-    defaultMat->setVorticityConfinement(10.f);
+    //PxPBDMaterial* defaultMat = handle->Physics->createPBDMaterial(0.05f, 0.05f, 0.f, 0.001f, 0.5f, 0.005f, 0.01f, 0.f, 0.f);
+    //defaultMat->setViscosity(0.001f);
+    //defaultMat->setSurfaceTension(0.00704f);
+    //defaultMat->setCohesion(0.0704f);
+    //defaultMat->setVorticityConfinement(10.f);
 
-    const PxU32 particlePhase = handle->Pbd->createPhase(defaultMat, PxParticlePhaseFlags(PxParticlePhaseFlag::eParticlePhaseFluid | PxParticlePhaseFlag::eParticlePhaseSelfCollide));
+    //const PxU32 particlePhase = handle->Pbd->createPhase(defaultMat, PxParticlePhaseFlags(PxParticlePhaseFlag::eParticlePhaseFluid | PxParticlePhaseFlag::eParticlePhaseSelfCollide));
 
     PxU32* phase = handle->CudaManager->allocPinnedHostBuffer<PxU32>(gMaxParticles);
     PxVec4* positionInvMass = handle->CudaManager->allocPinnedHostBuffer<PxVec4>(gMaxParticles);
@@ -295,12 +295,9 @@ DllExport(PxParticleBuffer*) pxCreateParticleBuffer(PxPbdHandle* handle) {
         phases[i] = handle->Pbd->createPhase(mat, PxParticlePhaseFlags(PxParticlePhaseFlag::eParticlePhaseFluid | PxParticlePhaseFlag::eParticlePhaseSelfCollide));
     }
 
-    PxReal centerX = 0.0f;
-    PxReal centerY = 1.0f;
-    PxReal centerZ = 0.0f;
-    PxU32 numX = 50;
-    PxU32 numY = 50;
-    PxU32 numZ = 50;
+    PxU32 numX = numParticlesDim;
+    PxU32 numY = numParticlesDim;
+    PxU32 numZ = numParticlesDim;
     PxReal x = centerX;
     PxReal y = centerY;
     PxReal z = centerZ;
@@ -347,6 +344,7 @@ DllExport(PxParticleBuffer*) pxCreateParticleBuffer(PxPbdHandle* handle) {
 }
 
 DllExport(void) pxGetParticleProperties(PxPbdHandle* handle, V4f* positionsHost, V4f* velsHost, PxU32* phasesHost){
+//DllExport(void) pxGetParticleProperties(PxPbdHandle* handle, float* positionsHost, float* velsHost, PxU32* phasesHost){
 
     PxVec4* positions = handle->ParticleBuffer->getPositionInvMasses();
     PxVec4* vels = handle->ParticleBuffer->getVelocities();
@@ -361,43 +359,53 @@ DllExport(void) pxGetParticleProperties(PxPbdHandle* handle, V4f* positionsHost,
     cudaContexManager->acquireContext();
 
     PxCudaContext* cudaContext = cudaContexManager->getCudaContext();
-    cudaContext->memcpyDtoH(gParticleInfo.posInvMass->begin(), CUdeviceptr(positions), sizeof(PxVec4) * numParticles);
-    cudaContext->memcpyDtoH(gParticleInfo.velocity->begin(), CUdeviceptr(vels), sizeof(PxVec4) * numParticles);
-    cudaContext->memcpyDtoH(gParticleInfo.phase->begin(), CUdeviceptr(phases), sizeof(PxU32) * numParticles);
-    //cudaContext->memcpyDtoH(positionsHost, CUdeviceptr(positions), sizeof(PxVec4) * numParticles);
-    //cudaContext->memcpyDtoH(velsHost, CUdeviceptr(vels), sizeof(PxVec4) * numParticles);
-    //cudaContext->memcpyDtoH(phasesHost, CUdeviceptr(phases), sizeof(PxU32) * numParticles);
+    //cudaContext->memcpyDtoH(gParticleInfo.posInvMass->begin(), CUdeviceptr(positions), sizeof(PxVec4) * numParticles);
+    //cudaContext->memcpyDtoH(gParticleInfo.velocity->begin(), CUdeviceptr(vels), sizeof(PxVec4) * numParticles);
+    //cudaContext->memcpyDtoH(gParticleInfo.phase->begin(), CUdeviceptr(phases), sizeof(PxU32) * numParticles);
+    cudaContext->memcpyDtoH(positionsHost, CUdeviceptr(positions), sizeof(PxVec4) * numParticles);
+    cudaContext->memcpyDtoH(velsHost, CUdeviceptr(vels), sizeof(PxVec4) * numParticles);
+    cudaContext->memcpyDtoH(phasesHost, CUdeviceptr(phases), sizeof(PxU32) * numParticles);
     cudaContexManager->releaseContext();
 
-    int i = 0;
-    for (auto it = gParticleInfo.posInvMass->begin(); it != gParticleInfo.posInvMass->end(); ++it)
-    {   
-        positionsHost[i].X = it->x;
-        positionsHost[i].Y = it->y;
-        positionsHost[i].Z = it->z;
-        positionsHost[i].W = it->w;
-        ++i;
-    }
-    i = 0;
-    for (auto it = gParticleInfo.velocity->begin(); it != gParticleInfo.velocity->end(); ++it)
-    {
-        velsHost[i].X = it->x;
-        velsHost[i].Y = it->y;
-        velsHost[i].Z = it->z;
-        velsHost[i].W = it->w;
-        ++i;
-    }
-    i = 0;
-    for (auto it = gParticleInfo.phase->begin(); it != gParticleInfo.phase->end(); ++it)
-    {
-        phasesHost[i] = *it;
-        ++i;
-    }
+    //int i = 0;
+    //for (auto it = gParticleInfo.posInvMass->begin(); it != gParticleInfo.posInvMass->end(); ++it)
+    //{   
+    //    //positionsHost[i].X = it->x;
+    //    //positionsHost[i].Y = it->y;
+    //    //positionsHost[i].Z = it->z;
+    //    //positionsHost[i].W = it->w;
+    //    //++i;
 
-    positionsHost[0].X = 100000.1f; 
+    //    positionsHost[i++] = it->x;
+    //    positionsHost[i++] = it->y;
+    //    positionsHost[i++] = it->z;
+    //    positionsHost[i++] = it->w;
+    //}
+    //i = 0;
+    //for (auto it = gParticleInfo.velocity->begin(); it != gParticleInfo.velocity->end(); ++it)
+    //{
+    //    //velsHost[i].X = it->x;
+    //    //velsHost[i].Y = it->y;
+    //    //velsHost[i].Z = it->z;
+    //    //velsHost[i].W = it->w;
+    //    //++i;
+
+    //    velsHost[i++] = it->x;
+    //    velsHost[i++] = it->y;
+    //    velsHost[i++] = it->z;
+    //    velsHost[i++] = it->w;
+    //}
+    //i = 0;
+    //for (auto it = gParticleInfo.phase->begin(); it != gParticleInfo.phase->end(); ++it)
+    //{
+    //    phasesHost[i] = *it;
+    //    ++i;
+    //}
+
+    positionsHost[0].X = 1.1f; 
     positionsHost[0].Y = 0.2f;
     positionsHost[1].Z = 0.3f;
-    positionsHost[1].W = 999999.4f;
+    positionsHost[1].W = 9.4f;
     velsHost[0].X = 0.6f;
     phasesHost[0] = PxU32(42);
 }

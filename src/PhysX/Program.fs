@@ -220,9 +220,7 @@ let main args =
         AVal.custom (fun t ->
             let sim = sim.GetValue t 
             scene.ReadParticleProperties()
-            printfn "%A" (Array.truncate 15 scene.particlePositions)
-            printfn "%A" (Array.truncate 15 scene.particleVels)
-            printfn "%A" (Array.truncate 15 scene.particlePhases)
+            printfn "%A" (Array.truncate 3 scene.particlePositions)
             scene.particlePositions |> Array.map (fun m -> Trafo3d.Translation(V3d(m.XYZ)))
         )
 
@@ -251,7 +249,7 @@ let main args =
                 do! DefaultSurfaces.simpleLighting
             }
             
-            Sg.sphere' 5 C4b.Blue 0.01
+            Sg.sphere' 5 C4b.Blue 0.1
             |> Sg.instanced particleTrafos
             |> Sg.shader {
                 do! DefaultSurfaces.trafo

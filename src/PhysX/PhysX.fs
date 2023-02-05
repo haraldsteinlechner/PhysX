@@ -118,11 +118,11 @@ module PhysX =
     extern PhysXPbdHandle pxCreatePBD(PhysXSceneHandle sceneHandle, uint32 maxParticles)
     
     [<DllImport("PhysXNative")>]
-    extern PhysXPbdParticleBuffer pxCreateParticleBuffer(PhysXPbdHandle handle)
+    extern PhysXPbdParticleBuffer pxCreateParticleBuffer(PhysXPbdHandle handle, single centerX, single centerY, single centerZ, uint32 numParticlesDim)
     
     [<DllImport("PhysXNative")>]
     extern void pxGetParticleProperties(
-        PhysXPbdHandle handle, V4f[] positionsHost, V4f[] velsHost, uint32[] phasesHost)
+        PhysXPbdHandle handle, V4f* positionsHost, V4f* velsHost, uint32[] phasesHost)
     
 type Material =
     {
@@ -168,14 +168,14 @@ type PhysXScene(gravity : V3d) =
     let sceneHandle = PhysX.pxCreateScene(physx, gravity)
     let maxParticles = 10000u
     let pbdHandle = PhysX.pxCreatePBD(sceneHandle, maxParticles)
-    let fluidParticles = PhysX.pxCreateParticleBuffer(pbdHandle)
+    let fluidParticles = PhysX.pxCreateParticleBuffer(pbdHandle, 0.0f, 0.0f, 1.0f, 10u)
     let matCache = Dict<Material, PhysXMaterialHandle>()
     let actors = System.Collections.Generic.HashSet<PhysXActor>()
     
     let positionsBuffer : V4f array = maxParticles |> int |> Array.zeroCreate
     let velsBuffer : V4f array = maxParticles |> int |> Array.zeroCreate
     let phasesBuffer : uint32 array = maxParticles |> int |> Array.zeroCreate
-
+    
     member x.Handle = sceneHandle
     member x.PbdHandle = pbdHandle
     member internal x.ActorSet = actors
@@ -250,8 +250,9 @@ type PhysXScene(gravity : V3d) =
         positionsBuffer.SetValue(V4f(42.0f, 43.0f, 44.0f, 45.0f), 0)
         velsBuffer.SetValue(V4f(22.0f, 43.0f, 44.0f, 45.0f), 0)
         phasesBuffer.SetValue(uint32(48), 1)
-        PhysX.pxGetParticleProperties(pbdHandle, positionsBuffer, velsBuffer, phasesBuffer)
-        printfn "%A" (Array.truncate 15 positionsBuffer)
+        use positionsBufferFixed = fixed positionsBuffer
+        use velsBufferFixed = fixed velsBuffer
+        PhysX.pxGetParticleProperties(pbdHandle, positionsBufferFixed, velsBufferFixed, phasesBuffer)
 
     member x.Dispose() =
         lock actors (fun () ->
