@@ -36,12 +36,37 @@ module Demo =
     let initial () = 
         let scene = new PhysXScene(V3d(0.0, 0.0, -9.81))
 
-        
+        let playgroundSize = 3.0
         let mat =
             {
                 StaticFriction = 0.5
                 DynamicFriction = 0.5
                 Restitution = 0.5
+            }
+
+        let plane = 
+            scene.AddStatic {
+                Geometry = Plane (Plane3d(V3d.IOO, -playgroundSize))
+                Pose = Euclidean3d.Identity
+                Material = mat
+            }
+        let plane = 
+            scene.AddStatic {
+                Geometry = Plane (Plane3d(-V3d.IOO, -playgroundSize))
+                Pose = Euclidean3d.Identity
+                Material = mat
+            }
+        let plane = 
+            scene.AddStatic {
+                Geometry = Plane (Plane3d(V3d.OIO, -playgroundSize))
+                Pose = Euclidean3d.Identity
+                Material = mat
+            }
+        let plane = 
+            scene.AddStatic {
+                Geometry = Plane (Plane3d(-V3d.OIO, -playgroundSize))
+                Pose = Euclidean3d.Identity
+                Material = mat
             }
         let plane = 
             scene.AddStatic {
@@ -49,25 +74,39 @@ module Demo =
                 Pose = Euclidean3d.Identity
                 Material = mat
             }
+        let plane = 
+            scene.AddStatic {
+                Geometry = Plane (Plane3d(-V3d.OOI, -playgroundSize * 2.0))
+                Pose = Euclidean3d.Identity
+                Material = mat
+            }
 
-    
         let boxes =
             [
-                for x in -5 .. 5 do
-                    for y in -5 .. 5 do
-                        for z in 0 .. 3 do
-                            let p = V3d(float x, float y, float z + 0.5) * 0.5
+                //for x in -5 .. 5 do
+                //    for y in -5 .. 5 do
+                //        for z in 0 .. 3 do
+                //            let p = V3d(float x, float y, float z + 0.5) * 0.5
 
-                            let box = 
-                                scene.AddDynamic  {
-                                    Geometry = Box V3d.Half
-                                    Pose = Euclidean3d.Translation(p)
-                                    Density = 1.0
-                                    Material = mat
-                                    Velocity = V3d.Zero
-                                    AngularVelocity = V3d.Zero
-                                }
-                            yield box
+                //            let box = 
+                //                scene.AddDynamic  {
+                //                    Geometry = Box V3d.Half
+                //                    Pose = Euclidean3d.Translation(p)
+                //                    Density = 1.0
+                //                    Material = mat
+                //                    Velocity = V3d.Zero
+                //                    AngularVelocity = V3d.Zero
+                //                }
+                //            yield box
+                
+                //scene.AddDynamic  {
+                //    Geometry = Box V3d.Half
+                //    Pose = Euclidean3d.Translation(0.0, 0.0, 10.0)
+                //    Density = 1.0
+                //    Material = mat
+                //    Velocity = V3d.Zero
+                //    AngularVelocity = V3d.Zero
+                //}
             ] |> HashSet.ofList
 
 
@@ -156,9 +195,9 @@ module Demo =
     let input (msg : VrMessage) =
         match msg with
         | VrMessage.PressButton(_,1) ->
-            [show]
+            [Message.ToggleVR]
         | VrMessage.UpdatePose(_,_) ->  
-            [UpdatePose]
+            [Message.UpdatePose]
         | _ -> 
             []
 
@@ -173,7 +212,6 @@ module Demo =
         
             )
 
-        
         let sphereTrafos = 
             let actors = AMap.toAVal m.spheres
             AVal.custom (fun t ->
@@ -184,26 +222,7 @@ module Demo =
         
             )
             
-        //let particleTrafos = 
-        //    let particles = ASet.toAVal m.particlePositions
-        //    //let particles = m.particlePositions |> AVal.map (fun theArray -> Array.map (fun (v: V3d) -> Trafo3d.Translation(v.XYZ)))
-        //    AVal.custom (fun t ->
-        //        m.version.GetValue t |> ignore
-        //        particles
-        //        //m.particlePositions |> AVal.map (fun theArray -> Array.map (fun v -> v))
-        //    )
-            
-        //let particleTrafos = 
-        //    m.particlePositions |> AVal.map (fun theArray -> Array.map (fun (v: V3d) -> Trafo3d.Translation(v.XYZ)))
-
         Sg.ofList [
-            //Sg.box C4b.White (Box3d.FromCenterAndSize(V3d.Zero, V3d.Half))
-            //|> Sg.instanced boxTrafos
-            //|> Sg.noEvents
-            //|> Sg.shader {
-            //    do! DefaultSurfaces.trafo
-            //    do! DefaultSurfaces.simpleLighting
-            //}
 
             Sg.box' C4b.White (Box3d.FromCenterAndSize(V3d.Zero, V3d.Half))
             |> Sg.instanced boxTrafos
@@ -230,7 +249,7 @@ module Demo =
                 do! DefaultSurfaces.simpleLighting
             }
             
-            Sg.sphere' 5 C4b.Blue 0.1
+            Sg.sphere' 2 C4b.Blue 0.1
             |> Sg.instanced m.particlePositions
             |> Sg.noEvents
             |> Sg.shader {
@@ -284,9 +303,10 @@ module Demo =
             show m [ style "width: 100%; height: 100%"; 
                      attribute "data-renderalways" "true" 
                    ] (
-                Sg.textWithConfig TextConfig.Default m.text
-                |> Sg.noEvents
-                |> Sg.andAlso stuff
+                //Sg.textWithConfig TextConfig.Default m.text
+                //|> Sg.noEvents
+                //|> Sg.andAlso stuff
+                stuff
             ) |> UI.map CameraMessage
             textarea [ style "position: fixed; top: 5px; left: 5px"; onChange SetText ] m.text
             button [ style "position: fixed; bottom: 5px; right: 5px"; onClick (fun () -> ToggleVR) ] t
@@ -320,11 +340,13 @@ module Demo =
 
         let physxScene = physxSg m
 
-        Sg.textWithConfig TextConfig.Default m.text
-        |> Sg.noEvents
-        |> Sg.andAlso deviceSgs
-        |> Sg.andAlso physxScene
+        //Sg.textWithConfig TextConfig.Default m.text
+        //|> Sg.noEvents
+        //|> Sg.andAlso deviceSgs
+        //|> Sg.andAlso physxScene
 
+        deviceSgs
+        |> Sg.andAlso physxScene
         
     let pause (info : VrSystemInfo) (m : AdaptiveModel) =
         Sg.box' C4b.Red Box3d.Unit
