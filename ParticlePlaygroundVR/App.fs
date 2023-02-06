@@ -133,8 +133,10 @@ module Demo =
                 { model with lastSimulation = Some DateTime.Now; version = model.version + 1 }
             | Some l -> 
                 let dt = (DateTime.Now - l).TotalSeconds
-                if dt < 0.1  then
-                    model.scene.Simulate (float dt)
+                if dt < 0.01 then
+                    model
+                elif dt < 0.1  then
+                    model.scene.Simulate(float dt)
                     model.scene.ReadParticleProperties()
                     let particleTrafos = model.scene.particlePositions |> Array.map (fun m -> Trafo3d.Translation(V3d(m.XYZ)))
                     { model with lastSimulation = Some DateTime.Now; particlePositions = particleTrafos; version = model.version + 1 }
